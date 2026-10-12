@@ -1,0 +1,26 @@
+# UniRide - FastAPI backend dependencies
+
+# REST API
+fastapi
+uvicorn[standard]
+
+# PostgreSQL database and ORM
+sqlalchemy
+psycopg[binary]
+alembic
+
+# Configuration and environment variables
+pydantic-settings
+python-dotenv
+
+# Authentication and password security
+PyJWT
+pwdlib[argon2]
+
+# API testing
+httpx
+pytest
+
+# Later: analytics / machine learning
+# pandas
+# scikit-learn
