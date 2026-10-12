@@ -23,27 +23,62 @@ UniRide lets authorized students find available bicycles, scan QR codes, start a
 ```text
 UniRide/
 │
-├── app/
-│   ├── __init__.py
-│   ├── main.py
+├── frontend/                         # React + TypeScript website
+│   ├── public/                       # Static assets
+│   ├── src/
+│   │   ├── components/               # Reusable UI components
+│   │   │
+│   │   ├── features/                 # Feature-specific frontend code
+│   │   │   ├── auth/
+│   │   │   │
+│   │   │   ├── bicycles/
+│   │   │   │
+│   │   │   ├── rides/
+│   │   │   │
+│   │   │   ├── reports/
+│   │   │   │
+│   │   │   └── admin/
+│   │   │
+│   │   ├── lib/
+│   │   │
+│   │   ├── styles/
+│   │   │
+│   │   ├── App.tsx                   # Application routes and layout
+│   │   └── main.tsx                  # Frontend entry point
 │   │
-│   ├── routers/
-│   │   └── __init__.py
-│   │
-│   ├── models/
-│   │   └── __init__.py
-│   │
-│   ├── schemas/
-│   │   └── __init__.py
-│   │
-│   └── services/
-│       └── __init__.py
+│   ├── .env.example                  # Example frontend configuration
+│   ├── package.json
+│   └── index.html
 │
-├── tests/
+├── backend/                          # FastAPI + Python backend
+│   ├── app/
+│   │   ├── main.py                   # Backend entry point
+│   │   ├── config.py                 # Application configuration
+│   │   ├── database.py               # Database connectivity
+│   │   │
+│   │   ├── api/
+│   │   │   └── routes/
+│   │   │
+│   │   ├── models/                   # Database models
+│   │   │
+│   │   ├── schemas/                  # Request/response validation
+│   │   │
+│   │   ├── services/                 # Business logic
+│   │   │
+│   │   ├── repositories/             # Database query operations
+│   │   │
+│   │   └── core/
+│   │
+│   ├── tests/                        # Backend automated tests
+│   │
+│   ├── alembic/                      # Database migrations
+│   ├── .env.example                  # Example backend configuration
+│   └── requirements.txt              # Python dependencies
 │
-├── .gitignore
-├── README.md
-└── requirements.txt
+├── docs/              
+│
+├── .gitignore                        # Files excluded from Git
+└── README.md                         # Project overview and instructions
 ```
 
 
