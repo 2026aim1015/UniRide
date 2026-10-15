@@ -16,6 +16,9 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  font-family: Inter, Arial, sans-serif;
+  background: #f4f7f2;
+  color: #243329;
 }
 
 button,
@@ -27,6 +30,23 @@ textarea {
 
 .app-shell {
   min-height: 100vh;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 32px;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 12px 40px #0f172a12;
 }
 
 .app-header {
@@ -96,18 +116,19 @@ textarea {
 
 .eyebrow {
   color: var(--green);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1.4px;
+  letter-spacing: 1.2px;
 }
 
-.muted,
-.tiny {
+.muted {
   color: var(--muted);
 }
 
 .tiny {
-  font-size: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .notice,
@@ -212,6 +233,24 @@ textarea {
 .status-maintenance {
   background: #fff0ee;
   color: #a52d24;
+}
+
+.switch-auth,
+.tiny {
+  font-size: 13px;
+}
+
+.text-button {
+  border: 0;
+  background: none;
+  color: var(--green);
+  cursor: pointer;
+  font: inherit;
+}
+
+.success {
+  color: #15803d;
+  font-size: 14px;
 }
 
 .app-footer {
