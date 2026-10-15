@@ -1,19 +1,44 @@
 import { useState } from "react";
-import { LoginPage } from "./features/auth/LoginPage";
-import { SignupPage } from "./features/auth/SignupPage";
+import { AdminDashboard } from "./features/admin/AdminDashboard";
+import { ReportPage } from "./features/reports/ReportPage";
 import "./App.css";
 
 function App() {
-  const [showSignup, setShowSignup] = useState(false);
+  const [page, setPage] = useState<"dashboard" | "reports">("dashboard");
 
   return (
-    <main className="app">
-      {showSignup ? (
-        <SignupPage onLogin={() => setShowSignup(false)} />
-      ) : (
-        <LoginPage onSignup={() => setShowSignup(true)} />
-      )}
-    </main>
+    <div className="app-shell">
+      <header className="app-header">
+        <div>
+          <h1>UniRide</h1>
+          <p>Campus Bicycle Sharing System</p>
+        </div>
+
+        <nav>
+          <button
+            className={page === "dashboard" ? "nav-button active" : "nav-button"}
+            onClick={() => setPage("dashboard")}
+          >
+            Admin Dashboard
+          </button>
+
+          <button
+            className={page === "reports" ? "nav-button active" : "nav-button"}
+            onClick={() => setPage("reports")}
+          >
+            Report an Issue
+          </button>
+        </nav>
+      </header>
+
+      <main className="app-main">
+        {page === "dashboard" ? <AdminDashboard /> : <ReportPage />}
+      </main>
+
+      <footer className="app-footer">
+        UniRide · Smart Campus Bicycle Sharing
+      </footer>
+    </div>
   );
 }
 
