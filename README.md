@@ -1,6 +1,6 @@
-# RideOn — Campus Bicycle Sharing Website
+# UniRide — Campus Bicycle Sharing Website
 
-A fresh, responsive React + TypeScript + Vite frontend for the RideOn campus bicycle-sharing project. The UI uses a welcoming dark-forest-green, white, and soft-sage palette inspired by the approved reference.
+A fresh, responsive React + TypeScript + Vite frontend for the UniRide campus bicycle-sharing project. The UI uses a welcoming dark-forest-green, white, and soft-sage palette inspired by the approved reference.
 
 ## Current scope
 - Responsive landing page
@@ -20,7 +20,7 @@ This is a frontend starter. It currently runs on local demo data so it can be re
 ## Run on Windows
 1. Install Node.js LTS (Node 22 or newer recommended).
 2. Extract this ZIP.
-3. Open PowerShell in the `RideOn_Frontend_Starter` folder.
+3. Open PowerShell in the `UniRide_Frontend_Starter` folder.
 4. Run:
 
 ```powershell
@@ -46,7 +46,7 @@ For now, `VITE_USE_DEMO_DATA=true` keeps the app usable without a backend.
 
 ## Project structure
 ```text
-RideOn_Frontend_Starter/
+UniRide_Frontend_Starter/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/

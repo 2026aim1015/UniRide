@@ -32,7 +32,7 @@ export function Sidebar({ role, page, onNavigate, onRoleChange, mobileOpen, onCl
     <aside className={`sidebar ${mobileOpen ? 'sidebar-open' : ''}`}>
       <div className="brand-row">
         <div className="brand-mark"><Bike size={25} strokeWidth={2.2} /></div>
-        <div><div className="brand-name">RideOn<span>.</span></div><div className="brand-subtitle">CAMPUS MOBILITY</div></div>
+        <div><div className="brand-name">UniRide<span>.</span></div><div className="brand-subtitle">CAMPUS MOBILITY</div></div>
         <button className="icon-button sidebar-close" onClick={onClose} aria-label="Close navigation"><X size={18} /></button>
       </div>
       <div className="campus-pill"><span className="online-dot" /> IIT Ropar campus</div>
@@ -57,7 +57,7 @@ export function Sidebar({ role, page, onNavigate, onRoleChange, mobileOpen, onCl
         </button>
         <div className="user-mini">
           <div className="avatar">HM</div>
-          <div className="user-mini-text"><strong>{role === 'student' ? 'Harshita Mahor' : 'RideOn Admin'}</strong><span>{role === 'student' ? 'Student account' : 'Administrator'}</span></div>
+          <div className="user-mini-text"><strong>{role === 'student' ? 'Harshita Mahor' : 'UniRide Admin'}</strong><span>{role === 'student' ? 'Student account' : 'Administrator'}</span></div>
           <LogOut size={17} className="logout-icon" />
         </div>
       </div>
