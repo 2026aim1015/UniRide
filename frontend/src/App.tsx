@@ -10,6 +10,8 @@ import { BicycleCard } from './components/BicycleCard'
 import { api } from './services/api'
 import { demoBicycles, demoReports, demoRides } from './data/demoData'
 import type { AppRole, Bicycle, BicycleStatus, ProblemReport, Ride } from './types'
+import InteractiveCampusMap from "./components/InteractiveCampusMap";
+
 
 const pageMeta: Record<Page, { title: string; subtitle: string }> = {
   overview: { title: 'Good day, Harshita', subtitle: 'A little less rush. A little more green.' },
@@ -26,14 +28,7 @@ function Modal({ children, onClose }: { children: ReactNode; onClose: () => void
 }
 
 function CampusMap({ compact = false }: { compact?: boolean }) {
-  return <div className={`campus-map ${compact ? 'campus-map-compact' : ''}`}>
-    <div className="map-road road-a" /><div className="map-road road-b" /><div className="map-road road-c" />
-    <div className="map-green green-a" /><div className="map-green green-b" /><div className="map-green green-c" />
-    <span className="map-label label-library">Central Library</span><span className="map-label label-mess">Student Mess</span><span className="map-label label-academic">Academic Block</span><span className="map-label label-hostel">Hostel 5</span>
-    <span className="map-pin pin-a"><Bike size={15} /></span><span className="map-pin pin-b"><Bike size={15} /></span><span className="map-pin pin-c"><Bike size={15} /></span><span className="map-pin pin-d"><Bike size={15} /></span>
-    <span className="map-user-pin"><Navigation size={16} fill="currentColor" /></span>
-    {!compact && <div className="map-caption"><span className="online-dot" /> Campus demo map <span>·</span> Illustrative locations</div>}
-  </div>
+  return <InteractiveCampusMap compact={compact} />;
 }
 
 function StatCard({ label, value, note, icon: Icon, tone = 'green' }: { label: string; value: string; note: string; icon: typeof Bike; tone?: string }) {
@@ -170,3 +165,7 @@ export default function App() {
 function WrenchIcon() {
   return <Wrench size={17} />
 }
+
+
+
+
