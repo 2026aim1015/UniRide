@@ -1,4 +1,4 @@
-# RideOn backend — planned FastAPI integration
+# UniRide backend — planned FastAPI integration
 
 The frontend is deliberately isolated behind `frontend/src/services/api.ts`. The next phase should implement a FastAPI REST API and PostgreSQL persistence.
 

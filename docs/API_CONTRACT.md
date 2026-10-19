@@ -1,4 +1,4 @@
-# RideOn API contract (frontend integration plan)
+# UniRide API contract (frontend integration plan)
 
 Base URL: `/api/v1`
 
