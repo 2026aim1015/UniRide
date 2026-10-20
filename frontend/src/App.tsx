@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import {
   ArrowDownRight, ArrowRight, ArrowUpRight, Bike, CalendarDays, Check, ChevronRight, CircleHelp,
   Clock3, Compass, Leaf, MapPin, Navigation, Plus, Search, ShieldCheck, Sparkles,
-  TrendingUp, Wrench, X, Zap
+  TrendingUp, Wrench, X, Zap ,QrCode
 } from 'lucide-react'
 import { Sidebar, type Page } from './components/Sidebar'
 import { Topbar } from './components/Topbar'
@@ -11,6 +11,7 @@ import { api } from './services/api'
 import { demoBicycles, demoReports, demoRides } from './data/demoData'
 import type { AppRole, Bicycle, BicycleStatus, ProblemReport, Ride } from './types'
 import InteractiveCampusMap from "./components/InteractiveCampusMap";
+import QRScanner from "./components/QRScanner";
 
 
 const pageMeta: Record<Page, { title: string; subtitle: string }> = {
@@ -55,6 +56,8 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(false)
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
+  const [showQRScanner, setShowQRScanner] = useState(false);
+
 
   useEffect(() => { api.getBicycles().then(setBicycles).catch(() => setBicycles(demoBicycles)); api.getRides().then(setRides).catch(() => setRides(demoRides)); api.getReports().then(setReports).catch(() => setReports(demoReports)) }, [])
   useEffect(() => {
@@ -118,6 +121,7 @@ export default function App() {
 
   const renderBicycles = () => <div className="content-stack">
     <section className="page-intro-card"><div><div className="eyebrow"><Compass size={14} /> FIND YOUR NEXT RIDE</div><h2>Pick your <span>campus companion.</span></h2><p>Search by bicycle ID, landmark, or location. Availability is shown for demo data.</p></div><div className="intro-illustration"><Bike size={90} strokeWidth={1.1} /></div></section>
+    <div className="qr-unlock-section"> <button className="button button-primary" onClick={() => setShowQRScanner(true)}> <QrCode size={18} />Scan QR to Unlock</button>{showQRScanner && (<QRScanner onScan={(decodedText) => { setShowQRScanner(false);const bicycleId = decodedText.trim();const bike = bicycles.find((b) => b.id.toLowerCase() === bicycleId.toLowerCase()); if (!bike) {setToast(`Bicycle ${bicycleId} not found.`);return;}setSelectedBike(bike);}}onClose={() => setShowQRScanner(false)}/>)}</div>
     <div className="bicycle-toolbar"><label className="search-field"><Search size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Try “Library” or “B-023”..." /></label><div className="filter-pills">{(['All', 'Available', 'In use', 'Maintenance'] as const).map(s => <button key={s} className={`filter-pill ${statusFilter === s ? 'filter-selected' : ''}`} onClick={() => setStatusFilter(s)}>{s}</button>)}</div></div>
     <div className="results-summary"><span><strong>{filteredBikes.length}</strong> bicycles found</span><span><i className="legend-dot green-dot" /> Availability can change</span></div>
     <div className="bicycle-grid">{filteredBikes.map(b => <BicycleCard key={b.id} bicycle={b} onSelect={setSelectedBike} onRide={startRide} />)}</div>
@@ -165,6 +169,7 @@ export default function App() {
 function WrenchIcon() {
   return <Wrench size={17} />
 }
+
 
 
 
