@@ -1,8 +1,11 @@
+import AuthPage from './components/AuthPage'
+import { supabase } from './lib/supabase'
+import type { Session } from '@supabase/supabase-js'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import {
   ArrowDownRight, ArrowRight, ArrowUpRight, Bike, CalendarDays, Check, ChevronRight, CircleHelp,
   Clock3, Compass, Leaf, MapPin, Navigation, Plus, Search, ShieldCheck, Sparkles,
-  TrendingUp, Wrench, X, Zap ,QrCode
+  TrendingUp, Wrench, X, Zap, QrCode
 } from 'lucide-react'
 import { Sidebar, type Page } from './components/Sidebar'
 import { Topbar } from './components/Topbar'
@@ -36,7 +39,7 @@ function StatCard({ label, value, note, icon: Icon, tone = 'green' }: { label: s
   return <div className={`stat-card stat-${tone}`}><div className="stat-top"><span>{label}</span><span className="stat-icon"><Icon size={18} /></span></div><div className="stat-value">{value}</div><div className="stat-note">{note}</div></div>
 }
 
-export default function App() {
+function UniRideDashboard() {
   const [role, setRole] = useState<AppRole>('student')
   const [page, setPage] = useState<Page>('overview')
   const [bicycles, setBicycles] = useState<Bicycle[]>(demoBicycles)
@@ -53,9 +56,6 @@ export default function App() {
   const [issueBike, setIssueBike] = useState('B-108')
   const [description, setDescription] = useState('')
   const [submitted, setSubmitted] = useState(false)
-  const [showLogin, setShowLogin] = useState(false)
-  const [loginEmail, setLoginEmail] = useState('')
-  const [loginPassword, setLoginPassword] = useState('')
   const [showQRScanner, setShowQRScanner] = useState(false);
 
 
@@ -99,8 +99,7 @@ export default function App() {
     setReports(old => [{ id: `P-${Date.now().toString().slice(-3)}`, bicycleId: issueBike, issue, location: bicycles.find(b => b.id === issueBike)?.location || 'Campus', status: 'Open', reportedAt: 'Just now' }, ...old])
     setSubmitted(true); setDescription(''); setToast('Thanks — your report has been received.')
   }
-  const handleLogin = (e: FormEvent) => { e.preventDefault(); setShowLogin(false); setToast(`Welcome${loginEmail ? `, ${loginEmail.split('@')[0]}` : ''}! Demo mode is active.`); setLoginPassword('') }
-
+  
   const renderOverview = () => role === 'student' ? <div className="content-stack">
     <section className="welcome-banner">
       <div className="welcome-copy"><div className="eyebrow"><Sparkles size={14} /> CAMPUS, AT YOUR PACE</div><h2>Good rides.<br /><span>Good for the planet.</span></h2><p>Find a bicycle, skip the long walk, and make your next campus hop a little greener.</p><div className="welcome-actions"><button className="button button-primary button-lg" onClick={() => navigate('bicycles')}>Find a bicycle <ArrowRight size={17} /></button><button className="button button-ghost button-lg" onClick={() => navigate('history')}>My rides</button></div><div className="welcome-trust"><span><ShieldCheck size={15} /> IIT Ropar students</span><span><Leaf size={15} /> A greener campus</span></div></div>
@@ -161,7 +160,6 @@ export default function App() {
       </div>
     </main>
     {selectedBike && <Modal onClose={() => setSelectedBike(null)}><div className="bike-detail-modal"><div className="detail-bike-art" style={{ background: selectedBike.color }}><Bike size={120} strokeWidth={1.05} /><span className={`status-chip ${selectedBike.status.toLowerCase().replace(' ', '-')}`}><i />{selectedBike.status}</span></div><div className="eyebrow">UniRide / BICYCLE DETAILS</div><h2>{selectedBike.label}</h2><p className="muted-text">{selectedBike.id} · Ready for your next campus hop</p><div className="detail-list"><div><MapPin size={16} /><span>Current location</span><strong>{selectedBike.location}</strong></div><div><Clock3 size={16} /><span>Walking distance</span><strong>{selectedBike.distance}</strong></div><div><ShieldCheck size={16} /><span>Last serviced</span><strong>{selectedBike.lastServiced}</strong></div></div><button className="button button-primary button-lg full-width" disabled={selectedBike.status !== 'Available'} onClick={() => startRide(selectedBike)}>{selectedBike.status === 'Available' ? 'Start ride' : 'Not available'} <ArrowRight size={17} /></button><p className="tiny-note">Ride start is simulated in this frontend preview.</p></div></Modal>}
-    {showLogin && <Modal onClose={() => setShowLogin(false)}><div className="login-modal"><div className="login-logo"><Bike size={28} /></div><div className="eyebrow">WELCOME TO UniRide</div><h2>Let’s get you moving.</h2><p className="muted-text">Sign in with your institute credentials.</p><form onSubmit={handleLogin}><label className="field-label">Roll number / institute email<input required value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="e.g. 2026CSM1016" /></label><label className="field-label">Password<input required type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Enter password" /></label><button className="button button-primary button-lg full-width" type="submit">Continue <ArrowRight size={17} /></button><p className="tiny-note">Demo sign-in only. Real authentication will be added with the backend.</p></form></div></Modal>}
     {toast && <div className="toast-message"><span className="toast-check"><Check size={15} /></span>{toast}<button onClick={() => setToast('')}><X size={14} /></button></div>}
   </div>
 }
@@ -172,5 +170,71 @@ function WrenchIcon() {
 
 
 
+
+export default function App() {
+  const [session, setSession] = useState<Session | null>(null)
+  const [checkingSession, setCheckingSession] = useState(true)
+
+  useEffect(() => {
+    let mounted = true
+
+    async function loadSession() {
+      const { data, error } = await supabase.auth.getSession()
+
+      if (mounted) {
+        if (error) {
+          console.error('Could not load session:', error.message)
+        }
+
+        setSession(data?.session ?? null)
+        setCheckingSession(false)
+      }
+    }
+
+    void loadSession()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession)
+      setCheckingSession(false)
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  async function handleSignOut() {
+    const { error } = await supabase.auth.signOut()
+
+    if (error) {
+      console.error('Sign out failed:', error.message)
+    }
+  }
+
+  if (checkingSession) {
+    return <div className="auth-loading">Loading UniRide...</div>
+  }
+
+  if (!session) {
+    return <AuthPage />
+  }
+
+  return (
+    <>
+      <UniRideDashboard />
+
+      <button
+        type="button"
+        className="auth-logout"
+        onClick={handleSignOut}
+      >
+        Sign out
+      </button>
+    </>
+  )
+}
 
 
