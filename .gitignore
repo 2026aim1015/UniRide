@@ -1,7 +1,28 @@
 
-/frontend/node_modules/
-node_modules/
-dist/
+# Python virtual environments
+.venv/
+venv/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Environment files and secrets
 .env
 .env.*
 !.env.example
+
+# Frontend dependencies
+node_modules/
+frontend/node_modules/
+
+# Build output
+dist/
+build/
+
+# Editor and operating-system files
+.vscode/
+.DS_Store
+Thumbs.db
