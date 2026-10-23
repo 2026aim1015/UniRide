@@ -31,3 +31,12 @@ export interface ProblemReport {
   status: 'Open' | 'In progress' | 'Resolved'
   reportedAt: string
 }
+
+export interface UserProfile {
+  id: string
+  full_name: string | null
+  roll_number: string | null
+  role: AppRole
+  account_status: 'active' | 'suspended'
+  created_at: string
+}

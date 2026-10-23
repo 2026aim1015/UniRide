@@ -4,8 +4,23 @@ import { Bike, Mail, LockKeyhole, UserRound, ArrowRight } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import './AuthPage.css'
 
+// Optional: only allow one email domain (example: iitrpr.ac.in). Leave empty to allow any email.
+const ALLOWED_DOMAIN = (import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN ?? '').trim().toLowerCase()
+
+type Mode = 'login' | 'signup' | 'forgot'
+
+function friendlyError(raw: string): string {
+  const text = raw.toLowerCase()
+  if (text.includes('invalid login credentials')) return 'Wrong email or password.'
+  if (text.includes('email not confirmed')) return 'Please confirm your email first. Check your inbox (and spam folder).'
+  if (text.includes('already registered')) return 'This email already has an account. Please sign in.'
+  if (text.includes('rate limit')) return 'Too many attempts. Please wait a few minutes and try again.'
+  if (text.includes('failed to fetch')) return 'Cannot reach the server. Check your internet connection.'
+  return raw
+}
+
 export default function AuthPage() {
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [mode, setMode] = useState<Mode>('login')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -19,44 +34,52 @@ export default function AuthPage() {
     setError('')
     setMessage('')
 
+    const cleanEmail = email.trim().toLowerCase()
+
     try {
+      if (mode !== 'login' && ALLOWED_DOMAIN && !cleanEmail.endsWith('@' + ALLOWED_DOMAIN)) {
+        throw new Error(`Please use your @${ALLOWED_DOMAIN} email address.`)
+      }
+
       if (mode === 'signup') {
         const { data, error } = await supabase.auth.signUp({
-          email,
+          email: cleanEmail,
           password,
           options: {
             data: { full_name: name.trim() },
             emailRedirectTo: window.location.origin,
           },
         })
-
         if (error) throw error
 
-        if (data.session) {
-          setMessage('Account created successfully!')
-        } else {
-          setMessage(
-            'Account created. Check your email to confirm your account, then sign in.'
-          )
+        // Supabase hides "email already exists" by returning a user with no identities.
+        if (data.user && data.user.identities && data.user.identities.length === 0) {
+          throw new Error('This email already has an account. Please sign in.')
         }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
 
+        setMessage(
+          data.session
+            ? 'Account created successfully!'
+            : 'Account created. Check your email and click the confirmation link, then sign in.'
+        )
+      } else if (mode === 'login') {
+        const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password })
         if (error) throw error
+      } else {
+        const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+          redirectTo: window.location.origin,
+        })
+        if (error) throw error
+        setMessage('If this email has an account, a password reset link has been sent.')
       }
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : 'Something went wrong.'
-      )
+      setError(friendlyError(err instanceof Error ? err.message : 'Something went wrong.'))
     } finally {
       setLoading(false)
     }
   }
 
-  function changeMode(next: 'login' | 'signup') {
+  function changeMode(next: Mode) {
     setMode(next)
     setError('')
     setMessage('')
@@ -108,21 +131,25 @@ export default function AuthPage() {
 
           <div className="auth-heading">
             <span className="auth-eyebrow">
-              {mode === 'login' ? 'WELCOME BACK' : 'JOIN UNIRIDE'}
+              {mode === 'login' ? 'WELCOME BACK' : mode === 'signup' ? 'JOIN UNIRIDE' : 'RESET PASSWORD'}
             </span>
             <h2>
               {mode === 'login'
                 ? 'Good to see you.'
-                : 'Let’s get you moving.'}
+                : mode === 'signup'
+                  ? 'Let’s get you moving.'
+                  : 'Forgot your password?'}
             </h2>
             <p>
               {mode === 'login'
                 ? 'Sign in to continue your campus journey.'
-                : 'Create your account to start riding.'}
+                : mode === 'signup'
+                  ? 'Create your account to start riding.'
+                  : 'Enter your email and we will send you a reset link.'}
             </p>
           </div>
 
-          <div className="auth-tabs">
+          {mode !== 'forgot' && <div className="auth-tabs">
             <button
               type="button"
               className={mode === 'login' ? 'active' : ''}
@@ -137,7 +164,7 @@ export default function AuthPage() {
             >
               Create account
             </button>
-          </div>
+          </div>}
 
           <form className="auth-form" onSubmit={handleSubmit}>
             {mode === 'signup' && (
@@ -165,14 +192,14 @@ export default function AuthPage() {
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder={ALLOWED_DOMAIN ? `you@${ALLOWED_DOMAIN}` : 'you@example.com'}
                   autoComplete="email"
                   required
                 />
               </span>
             </label>
 
-            <label>
+            {mode !== 'forgot' && <label>
               Password
               <span className="auth-input">
                 <LockKeyhole size={18} />
@@ -188,7 +215,13 @@ export default function AuthPage() {
                   required
                 />
               </span>
-            </label>
+            </label>}
+
+            {mode === 'login' && (
+              <button type="button" className="auth-link" onClick={() => changeMode('forgot')}>
+                Forgot password?
+              </button>
+            )}
 
             {error && <p className="auth-message error">{error}</p>}
             {message && <p className="auth-message success">{message}</p>}
@@ -202,10 +235,18 @@ export default function AuthPage() {
                 ? 'Please wait...'
                 : mode === 'login'
                   ? 'Sign in'
-                  : 'Create account'}
+                  : mode === 'signup'
+                    ? 'Create account'
+                    : 'Send reset link'}
               {!loading && <ArrowRight size={18} />}
             </button>
           </form>
+
+          {mode === 'forgot' && (
+            <button type="button" className="auth-link" onClick={() => changeMode('login')}>
+              ← Back to sign in
+            </button>
+          )}
 
           <p className="auth-terms">
             By continuing, you agree to use UniRide responsibly

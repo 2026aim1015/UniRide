@@ -8,11 +8,18 @@ interface Props {
   page: Page
   onNavigate: (page: Page) => void
   onRoleChange: (role: AppRole) => void
+  canSwitchRole: boolean
+  userName: string
+  onSignOut: () => void
   mobileOpen: boolean
   onClose: () => void
 }
 
-export function Sidebar({ role, page, onNavigate, onRoleChange, mobileOpen, onClose }: Props) {
+function initials(name: string) {
+  return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'U'
+}
+
+export function Sidebar({ role, page, onNavigate, onRoleChange, canSwitchRole, userName, onSignOut, mobileOpen, onClose }: Props) {
   const studentItems: { id: Page; label: string; icon: typeof Bike }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'bicycles', label: 'Find bicycles', icon: Bike },
@@ -52,13 +59,13 @@ export function Sidebar({ role, page, onNavigate, onRoleChange, mobileOpen, onCl
           <p>Small rides. Greener days.</p>
           <div className="eco-spark">✳</div>
         </div>
-        <button className="nav-item muted-nav" onClick={() => onRoleChange(role === 'student' ? 'admin' : 'student')}>
+        {canSwitchRole && <button className="nav-item muted-nav" onClick={() => onRoleChange(role === 'student' ? 'admin' : 'student')}>
           <UserRound size={18} /><span>Preview {role === 'student' ? 'admin' : 'student'} view</span>
-        </button>
+        </button>}
         <div className="user-mini">
-          <div className="avatar">HM</div>
-          <div className="user-mini-text"><strong>{role === 'student' ? 'Harshita Mahor' : 'UniRide Admin'}</strong><span>{role === 'student' ? 'Student account' : 'Administrator'}</span></div>
-          <LogOut size={17} className="logout-icon" />
+          <div className="avatar">{initials(userName)}</div>
+          <div className="user-mini-text"><strong>{userName}</strong><span>{canSwitchRole ? 'Administrator' : 'Student account'}</span></div>
+          <button type="button" className="icon-button" onClick={onSignOut} aria-label="Sign out" title="Sign out"><LogOut size={17} className="logout-icon" /></button>
         </div>
       </div>
     </aside>
