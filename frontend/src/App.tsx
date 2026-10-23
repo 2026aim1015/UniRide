@@ -12,7 +12,8 @@ import { Topbar } from './components/Topbar'
 import { BicycleCard } from './components/BicycleCard'
 import { api } from './services/api'
 import { demoBicycles, demoReports, demoRides } from './data/demoData'
-import type { AppRole, Bicycle, BicycleStatus, ProblemReport, Ride } from './types'
+import type { AppRole, Bicycle, BicycleStatus, ProblemReport, Ride, UserProfile } from './types'
+import ResetPasswordPage from './components/ResetPasswordPage'
 import InteractiveCampusMap from "./components/InteractiveCampusMap";
 import QRScanner from "./components/QRScanner";
 
@@ -39,8 +40,9 @@ function StatCard({ label, value, note, icon: Icon, tone = 'green' }: { label: s
   return <div className={`stat-card stat-${tone}`}><div className="stat-top"><span>{label}</span><span className="stat-icon"><Icon size={18} /></span></div><div className="stat-value">{value}</div><div className="stat-note">{note}</div></div>
 }
 
-function UniRideDashboard() {
-  const [role, setRole] = useState<AppRole>('student')
+function UniRideDashboard({ profile, onSignOut }: { profile: UserProfile; onSignOut: () => void }) {
+  const firstName = (profile.full_name || 'there').trim().split(' ')[0]
+  const [role, setRole] = useState<AppRole>(profile.role)
   const [page, setPage] = useState<Page>('overview')
   const [bicycles, setBicycles] = useState<Bicycle[]>(demoBicycles)
   const [rides, setRides] = useState<Ride[]>(demoRides)
@@ -76,7 +78,7 @@ function UniRideDashboard() {
     return matchesSearch && (statusFilter === 'All' || b.status === statusFilter)
   }), [bicycles, search, statusFilter])
   const availableCount = bicycles.filter(b => b.status === 'Available').length
-  const title = pageMeta[page]
+  const title = page === 'overview' && role === 'student' ? { ...pageMeta.overview, title: `Good day, ${firstName}` } : pageMeta[page]
 
   const navigate = (next: Page) => { setPage(next); setSearch(''); if (next === 'bicycles') setStatusFilter('All') }
   const startRide = async (bike: Bicycle) => {
@@ -129,7 +131,7 @@ function UniRideDashboard() {
   </div>
 
   const renderActiveRide = () => <div className="content-stack">
-    {rideBike ? <section className="active-ride-layout"><div className="active-ride-main panel"><div className="ride-live-row"><span className="live-pill"><i /> RIDE IN PROGRESS</span><span className="ride-id">Ride ID · DEMO-001</span></div><div className="ride-bike-orbit"><div className="orbit-ring" /><Bike size={100} strokeWidth={1.15} /></div><h2>Enjoy the ride, <span>Harshita.</span></h2><p className="muted-text">You’re riding {rideBike.id} · {rideBike.label}</p><div className="ride-timer">{String(Math.floor(rideSeconds / 3600)).padStart(2,'0')}:{String(Math.floor((rideSeconds % 3600) / 60)).padStart(2,'0')}:{String(rideSeconds % 60).padStart(2,'0')}</div><span className="muted-text">Time on your ride</span><div className="ride-progress"><span /></div><div className="ride-facts"><div><MapPin size={17} /><span>Started at</span><strong>{rideBike.location}</strong></div><div><Navigation size={17} /><span>Distance</span><strong>1.2 km <small>· demo</small></strong></div></div><button className="button button-danger button-lg full-width" onClick={endRide}>End ride <ArrowRight size={17} /></button><p className="tiny-note">Please park in a designated zone before ending your ride.</p></div><div className="content-stack"><section className="panel"><div className="panel-heading"><div><h3>Near your route</h3><p>Campus map preview</p></div></div><CampusMap compact /></section><section className="parking-card"><div className="parking-icon"><MapPin size={20} /></div><h3>Ready to park?</h3><p>Look for a designated parking zone near your destination.</p><button className="button button-outline full-width" onClick={() => setToast('Parking zones will be connected to the backend.')}>View parking zones</button></section></div></section> : <div className="empty-state ride-empty"><div className="empty-icon"><Bike size={42} /></div><h2>No active ride right now.</h2><p>Your next campus trip is just a bicycle away.</p><button className="button button-primary button-lg" onClick={() => navigate('bicycles')}>Find a bicycle <ArrowRight size={17} /></button><div className="empty-footnote"><ShieldCheck size={15} /> Ride details will appear here after you start a ride.</div></div>}
+    {rideBike ? <section className="active-ride-layout"><div className="active-ride-main panel"><div className="ride-live-row"><span className="live-pill"><i /> RIDE IN PROGRESS</span><span className="ride-id">Ride ID · DEMO-001</span></div><div className="ride-bike-orbit"><div className="orbit-ring" /><Bike size={100} strokeWidth={1.15} /></div><h2>Enjoy the ride, <span>{firstName}.</span></h2><p className="muted-text">You’re riding {rideBike.id} · {rideBike.label}</p><div className="ride-timer">{String(Math.floor(rideSeconds / 3600)).padStart(2,'0')}:{String(Math.floor((rideSeconds % 3600) / 60)).padStart(2,'0')}:{String(rideSeconds % 60).padStart(2,'0')}</div><span className="muted-text">Time on your ride</span><div className="ride-progress"><span /></div><div className="ride-facts"><div><MapPin size={17} /><span>Started at</span><strong>{rideBike.location}</strong></div><div><Navigation size={17} /><span>Distance</span><strong>1.2 km <small>· demo</small></strong></div></div><button className="button button-danger button-lg full-width" onClick={endRide}>End ride <ArrowRight size={17} /></button><p className="tiny-note">Please park in a designated zone before ending your ride.</p></div><div className="content-stack"><section className="panel"><div className="panel-heading"><div><h3>Near your route</h3><p>Campus map preview</p></div></div><CampusMap compact /></section><section className="parking-card"><div className="parking-icon"><MapPin size={20} /></div><h3>Ready to park?</h3><p>Look for a designated parking zone near your destination.</p><button className="button button-outline full-width" onClick={() => setToast('Parking zones will be connected to the backend.')}>View parking zones</button></section></div></section> : <div className="empty-state ride-empty"><div className="empty-icon"><Bike size={42} /></div><h2>No active ride right now.</h2><p>Your next campus trip is just a bicycle away.</p><button className="button button-primary button-lg" onClick={() => navigate('bicycles')}>Find a bicycle <ArrowRight size={17} /></button><div className="empty-footnote"><ShieldCheck size={15} /> Ride details will appear here after you start a ride.</div></div>}
   </div>
 
   const renderHistory = () => <div className="content-stack">
@@ -144,9 +146,9 @@ function UniRideDashboard() {
   const renderAdminReports = () => <div className="content-stack"><section className="page-intro-card report-admin-intro"><div><div className="eyebrow"><WrenchIcon /> FLEET CARE</div><h2>Fix the little things.<br /><span>Keep rides rolling.</span></h2><p>Review reported issues and track the next action.</p></div><div className="intro-illustration"><ShieldCheck size={78} strokeWidth={1.1} /></div></section><div className="report-status-grid"><div className="report-status-card"><span>Open</span><strong>{reports.filter(r => r.status === 'Open').length}</strong><div className="status-track open-track" /></div><div className="report-status-card"><span>In progress</span><strong>{reports.filter(r => r.status === 'In progress').length}</strong><div className="status-track progress-track" /></div><div className="report-status-card"><span>Resolved</span><strong>{reports.filter(r => r.status === 'Resolved').length}</strong><div className="status-track resolved-track" /></div></div><section className="panel history-panel"><div className="panel-heading"><div><h3>Issue reports</h3><p>Review bicycle issues from around campus.</p></div><span className="map-live-pill">{reports.length} REPORTS</span></div><div className="report-list">{reports.map(r => <div className="admin-report-row" key={r.id}><div className={`report-symbol ${r.status.toLowerCase().replace(' ', '-')}`}><WrenchIcon /></div><div className="admin-report-main"><strong>{r.bicycleId} · {r.issue}</strong><span>{r.location} · {r.reportedAt}</span><small>Report ID {r.id}</small></div><select aria-label={`Status for ${r.id}`} value={r.status} onChange={e => setReports(old => old.map(x => x.id === r.id ? { ...x, status: e.target.value as ProblemReport['status'] } : x))}><option>Open</option><option>In progress</option><option>Resolved</option></select></div>)}</div></section></div>
 
   return <div className="app-shell">
-    <Sidebar role={role} page={page} onNavigate={navigate} onRoleChange={r => { setRole(r); setPage('overview'); setToast(`Previewing ${r} interface.`) }} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+    <Sidebar role={role} page={page} onNavigate={navigate} canSwitchRole={profile.role === 'admin'} userName={profile.full_name || 'UniRide user'} onSignOut={onSignOut} onRoleChange={r => { if (profile.role !== 'admin') return; setRole(r); setPage('overview'); setToast(`Previewing ${r} interface.`) }} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
     <main className="main-area">
-      <Topbar title={title.title} subtitle={title.subtitle} onMenu={() => setMobileOpen(true)} onSearch={value => { setSearch(value); if (value) setPage('bicycles') }} />
+      <Topbar title={title.title} subtitle={title.subtitle} userName={profile.full_name || 'UniRide user'} roleLabel={profile.role === 'admin' ? 'Admin' : 'Student'} onMenu={() => setMobileOpen(true)} onSearch={value => { setSearch(value); if (value) setPage('bicycles') }} />
       <div className="main-content">
         <div className="breadcrumb"><span>UniRide</span><ChevronRight size={13} /><strong>{role === 'admin' && page === 'overview' ? 'Admin dashboard' : title.title}</strong><span className="breadcrumb-spacer" /><span className="today-label"><CalendarDays size={14} /> Saturday, 17 October 2026</span></div>
         {page === 'overview' && renderOverview()}
@@ -174,28 +176,24 @@ function WrenchIcon() {
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [checkingSession, setCheckingSession] = useState(true)
+  const [recovering, setRecovering] = useState(false)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profileError, setProfileError] = useState('')
 
   useEffect(() => {
     let mounted = true
 
     async function loadSession() {
       const { data, error } = await supabase.auth.getSession()
-
-      if (mounted) {
-        if (error) {
-          console.error('Could not load session:', error.message)
-        }
-
-        setSession(data?.session ?? null)
-        setCheckingSession(false)
-      }
+      if (!mounted) return
+      if (error) console.error('Could not load session:', error.message)
+      setSession(data?.session ?? null)
+      setCheckingSession(false)
     }
-
     void loadSession()
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (event === 'PASSWORD_RECOVERY') setRecovering(true)
       setSession(newSession)
       setCheckingSession(false)
     })
@@ -206,35 +204,50 @@ export default function App() {
     }
   }, [])
 
+  // Whenever the logged-in user changes, ask OUR backend who they are (role, name).
+  const userId = session?.user.id
+  useEffect(() => {
+    if (!userId) {
+      setProfile(null)
+      setProfileError('')
+      return
+    }
+    let cancelled = false
+    setProfileError('')
+    api.getMe()
+      .then(p => { if (!cancelled) setProfile(p) })
+      .catch(err => { if (!cancelled) setProfileError(err instanceof Error ? err.message : 'Could not load your profile.') })
+    return () => { cancelled = true }
+  }, [userId])
+
   async function handleSignOut() {
     const { error } = await supabase.auth.signOut()
-
-    if (error) {
-      console.error('Sign out failed:', error.message)
-    }
+    if (error) console.error('Sign out failed:', error.message)
+    setProfile(null)
   }
 
-  if (checkingSession) {
-    return <div className="auth-loading">Loading UniRide...</div>
+  if (checkingSession) return <div className="auth-loading">Loading UniRide...</div>
+
+  if (recovering && session) {
+    return <ResetPasswordPage onDone={() => setRecovering(false)} />
   }
 
-  if (!session) {
-    return <AuthPage />
+  if (!session) return <AuthPage />
+
+  if (profileError) {
+    return (
+      <div className="auth-loading" style={{ flexDirection: 'column', gap: 14, textAlign: 'center', padding: 24 }}>
+        <p>Signed in, but the UniRide server could not be reached.</p>
+        <small style={{ maxWidth: 420, fontWeight: 400, overflowWrap: 'anywhere' }}>{profileError}</small>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" className="auth-logout" style={{ position: 'static' }} onClick={() => window.location.reload()}>Try again</button>
+          <button type="button" className="auth-logout" style={{ position: 'static' }} onClick={handleSignOut}>Sign out</button>
+        </div>
+      </div>
+    )
   }
 
-  return (
-    <>
-      <UniRideDashboard />
+  if (!profile) return <div className="auth-loading">Loading your profile...</div>
 
-      <button
-        type="button"
-        className="auth-logout"
-        onClick={handleSignOut}
-      >
-        Sign out
-      </button>
-    </>
-  )
+  return <UniRideDashboard profile={profile} onSignOut={handleSignOut} />
 }
-
-

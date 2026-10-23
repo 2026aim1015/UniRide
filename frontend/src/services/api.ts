@@ -1,5 +1,5 @@
 import { demoBicycles, demoReports, demoRides } from '../data/demoData'
-import type { Bicycle, ProblemReport, Ride } from '../types'
+import type { Bicycle, ProblemReport, Ride, UserProfile } from '../types'
 import { supabase } from '../lib/supabase'
 
 const API_BASE =
@@ -81,6 +81,11 @@ async function request<T>(
 }
 
 export const api = {
+  // Always talks to the real backend (login is never faked, even in demo-data mode).
+  async getMe(): Promise<UserProfile> {
+    return request<UserProfile>('/profiles/me')
+  },
+
   async getBicycles(): Promise<Bicycle[]> {
     if (USE_DEMO) return demoBicycles
 
