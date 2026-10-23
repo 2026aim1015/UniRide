@@ -34,10 +34,16 @@ export const api = {
     if (USE_DEMO) return { rideId: `DEMO-${Date.now()}`, bicycleId }
     return request('/rides/start', { method: 'POST', body: JSON.stringify({ bicycle_id: bicycleId }) })
   },
-  async endRide(rideId: string): Promise<{ ok: boolean }> {
-    if (USE_DEMO) return { ok: true }
-    return request(`/rides/${rideId}/end`, { method: 'POST' })
-  },
+async endRide(rideId: string): Promise<{ ok: boolean }> {
+  if (USE_DEMO) return { ok: true }
+
+  await request(`/rides/${rideId}/end`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+
+  return { ok: true }
+},
   async submitReport(input: { bicycleId: string; issue: string; description: string }): Promise<{ ok: boolean }> {
     if (USE_DEMO) return { ok: true }
     return request('/reports', { method: 'POST', body: JSON.stringify({
