@@ -21,13 +21,30 @@ def distance_m(lat1, lon1, lat2, lon2):
 
 def validate_zone(db, zone_id, lat, lon):
     if zone_id is None:
-        return
+        raise HTTPException(
+            status_code=400,
+            detail="A parking zone must be selected",
+        )
+
+    if lat is None or lon is None:
+        raise HTTPException(
+            status_code=400,
+            detail="GPS coordinates are required",
+        )
+
     zone = db.get(ParkingZone, zone_id)
-    if not zone or not zone.is_active:
-        raise HTTPException(status_code=400, detail="Parking zone is not active")
-    if lat is not None and lon is not None:
-        if distance_m(lat, lon, zone.latitude, zone.longitude) > zone.radius_meters:
-            raise HTTPException(status_code=400, detail="Coordinates are outside the selected parking zone")
+
+    if zone is None or not zone.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail="Parking zone does not exist or is inactive",
+        )
+
+    if distance_m(lat, lon, zone.latitude, zone.longitude) > zone.radius_meters:
+        raise HTTPException(
+            status_code=400,
+            detail="Coordinates are outside the selected parking zone",
+        )
 
 @router.get("/me", response_model=list[RideOut])
 def my_rides(db: Session = Depends(get_db), profile: Profile = Depends(current_profile)):
