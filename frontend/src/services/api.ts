@@ -18,6 +18,37 @@ interface ApiBicycle {
   last_longitude: number | null
   created_at: string
 }
+interface ApiRide {
+  id: string
+  user_id: string
+  bicycle_id: string
+  status: string
+  start_time: string
+  end_time: string | null
+  start_latitude: number | null
+  start_longitude: number | null
+  end_latitude: number | null
+  end_longitude: number | null
+  start_zone_id: string | null
+  end_zone_id: string | null
+}
+
+interface ApiReport {
+  id: string
+  bicycle_id: string
+  reporter_id: string
+  ride_id: string | null
+  category: string
+  description: string
+  status: string
+  created_at: string
+}
+
+
+interface RideCoordinates {
+  latitude: number
+  longitude: number
+}
 
 function convertBicycle(item: ApiBicycle): Bicycle {
   const statusMap: Record<string, Bicycle['status']> = {
@@ -46,6 +77,65 @@ function convertBicycle(item: ApiBicycle): Bicycle {
     color: item.status === 'available' ? '#e0f1e8' : '#f1f1ed',
   }
 }
+function convertRide(item: ApiRide): Ride {
+  const formatLocation = (
+    latitude: number | null,
+    longitude: number | null,
+    zoneId: string | null,
+  ): string => {
+    if (latitude !== null && longitude !== null) {
+      return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
+    }
+
+    if (zoneId) {
+      return `Parking zone ${zoneId.slice(0, 8)}`
+    }
+
+    return 'Location not recorded'
+  }
+
+  return {
+    id: item.id,
+    bicycleId: item.bicycle_id,
+    startLocation: formatLocation(
+      item.start_latitude,
+      item.start_longitude,
+      item.start_zone_id,
+    ),
+    endLocation: formatLocation(
+      item.end_latitude,
+      item.end_longitude,
+      item.end_zone_id,
+    ),
+    date: new Date(item.start_time).toLocaleString(),
+    duration: 'Not calculated yet',
+    distance: 'Not calculated yet',
+    status:
+      item.status === 'completed'
+        ? 'Completed'
+        : 'Active',
+  }
+}
+
+
+function convertReport(item: ApiReport): ProblemReport {
+  const statusMap: Record<string, ProblemReport['status']> = {
+    open: 'Open',
+    investigating: 'In progress',
+    resolved: 'Resolved',
+    rejected: 'Resolved',
+  }
+
+  return {
+    id: item.id,
+    bicycleId: item.bicycle_id,
+    issue: item.category,
+    location: 'Location not recorded',
+    status: statusMap[item.status] ?? 'Open',
+    reportedAt: new Date(item.created_at).toLocaleString(),
+  }
+}
+
 
 async function request<T>(
   path: string,
@@ -108,33 +198,88 @@ export const api = {
   },
 
   async getRides(): Promise<Ride[]> {
-    if (USE_DEMO) return demoRides
-    return request<Ride[]>('/rides/me')
-  },
+  if (USE_DEMO) return demoRides
+  const items = await request<ApiRide[]>('/rides/me')
+  return items.map(convertRide)
+},
 
-  async getReports(): Promise<ProblemReport[]> {
-    if (USE_DEMO) return demoReports
-    return request<ProblemReport[]>('/reports')
-  },
+  
+ 
+async getReports(): Promise<ProblemReport[]> {
+  if (USE_DEMO) return demoReports
+
+  const items = await request<ApiReport[]>('/reports/me')
+  return items.map(convertReport)
+},
+
 
   async startRide(
-    bicycleId: string,
-  ): Promise<{ rideId: string; bicycleId: string }> {
-    if (USE_DEMO) {
-      return { rideId: `DEMO-${Date.now()}`, bicycleId }
-    }
+  bicycleId: string,
+  startLocation?: RideCoordinates,
+): Promise<{ rideId: string; bicycleId: string }> {
+  if (USE_DEMO) {
+    throw new Error(
+      'Demo mode is not supported for starting real rides.',
+    )
+  }
 
-    return request('/rides/start', {
+  const ride = await request<ApiRide>('/rides/start', {
+    method: 'POST',
+    body: JSON.stringify({
+      bicycle_id: bicycleId,
+      start_latitude: startLocation?.latitude ?? null,
+      start_longitude: startLocation?.longitude ?? null,
+    }),
+  })
+
+  return {
+    rideId: ride.id,
+    bicycleId: ride.bicycle_id,
+  }
+},
+
+  async endRide(
+  rideId: string,
+  endLocation?: RideCoordinates,
+): Promise<ApiRide> {
+  if (USE_DEMO) {
+    throw new Error(
+      'Demo mode is not supported for ending real rides.',
+    )
+  }
+
+  return request<ApiRide>(
+    `/rides/${encodeURIComponent(rideId)}/end`,
+    {
       method: 'POST',
-      body: JSON.stringify({ bicycle_id: bicycleId }),
-    })
-  },
+      body: JSON.stringify({
+        end_latitude: endLocation?.latitude ?? null,
+        end_longitude: endLocation?.longitude ?? null,
+      }),
+    },
+  )
+},
+async recordRideLocation(
+  rideId: string,
+  location: RideCoordinates,
+): Promise<void> {
+  if (USE_DEMO) {
+    throw new Error(
+      'Demo mode is not supported for GPS tracking.',
+    )
+  }
 
-  async endRide(rideId: string): Promise<{ ok: boolean }> {
-    if (USE_DEMO) return { ok: true }
-
-    return request(`/rides/${rideId}/end`, { method: 'POST' })
-  },
+  await request(
+    `/rides/${encodeURIComponent(rideId)}/locations`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        latitude: location.latitude,
+        longitude: location.longitude,
+      }),
+    },
+  )
+},
 
   async submitReport(input: {
     bicycleId: string

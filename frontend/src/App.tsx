@@ -11,7 +11,6 @@ import { Sidebar, type Page } from './components/Sidebar'
 import { Topbar } from './components/Topbar'
 import { BicycleCard } from './components/BicycleCard'
 import { api } from './services/api'
-import { demoBicycles, demoReports, demoRides } from './data/demoData'
 import type { AppRole, Bicycle, BicycleStatus, ProblemReport, Ride, UserProfile } from './types'
 import ResetPasswordPage from './components/ResetPasswordPage'
 import InteractiveCampusMap from "./components/InteractiveCampusMap";
@@ -44,15 +43,16 @@ function UniRideDashboard({ profile, onSignOut }: { profile: UserProfile; onSign
   const firstName = (profile.full_name || 'there').trim().split(' ')[0]
   const [role, setRole] = useState<AppRole>(profile.role)
   const [page, setPage] = useState<Page>('overview')
-  const [bicycles, setBicycles] = useState<Bicycle[]>(demoBicycles)
-  const [rides, setRides] = useState<Ride[]>(demoRides)
-  const [reports, setReports] = useState<ProblemReport[]>(demoReports)
+  const [bicycles, setBicycles] = useState<Bicycle[]>([])
+  const [rides, setRides] = useState<Ride[]>([])
+  const [reports, setReports] = useState<ProblemReport[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'All' | BicycleStatus>('All')
   const [selectedBike, setSelectedBike] = useState<Bicycle | null>(null)
   const [toast, setToast] = useState('')
   const [mobileOpen, setMobileOpen] = useState(false)
   const [rideBike, setRideBike] = useState<Bicycle | null>(null)
+  const [activeRideId, setActiveRideId] = useState<string | null>(null)
   const [rideSeconds, setRideSeconds] = useState(12 * 60 + 34)
   const [issue, setIssue] = useState('Damaged bicycle')
   const [issueBike, setIssueBike] = useState('B-108')
@@ -61,7 +61,36 @@ function UniRideDashboard({ profile, onSignOut }: { profile: UserProfile; onSign
   const [showQRScanner, setShowQRScanner] = useState(false);
 
 
-  useEffect(() => { api.getBicycles().then(setBicycles).catch(() => setBicycles(demoBicycles)); api.getRides().then(setRides).catch(() => setRides(demoRides)); api.getReports().then(setReports).catch(() => setReports(demoReports)) }, [])
+useEffect(() => {
+  let cancelled = false
+  const loadData = async () => {
+    try {
+      const [loadedBicycles, loadedRides, loadedReports] =
+        await Promise.all([
+          api.getBicycles(),
+          api.getRides(),
+          api.getReports(),
+        ])
+      if (cancelled) return
+      setBicycles(loadedBicycles)
+      setRides(loadedRides)
+      setReports(loadedReports)
+    } catch (error) {
+      if (cancelled) return
+      setToast(
+        error instanceof Error
+          ? error.message
+          : 'Could not load data from the server.',
+      )
+    }
+  }
+
+  void loadData()
+
+  return () => {
+    cancelled = true
+  }
+}, [])
   useEffect(() => {
     if (!rideBike) return
     const timer = window.setInterval(() => setRideSeconds(s => s + 1), 1000)
@@ -81,26 +110,87 @@ function UniRideDashboard({ profile, onSignOut }: { profile: UserProfile; onSign
   const title = page === 'overview' && role === 'student' ? { ...pageMeta.overview, title: `Good day, ${firstName}` } : pageMeta[page]
 
   const navigate = (next: Page) => { setPage(next); setSearch(''); if (next === 'bicycles') setStatusFilter('All') }
+  
+  
   const startRide = async (bike: Bicycle) => {
-    if (bike.status !== 'Available') return
-    try { await api.startRide(bike.id) } catch { /* keep demo interaction responsive */ }
-    setRideBike(bike); setRideSeconds(0); setBicycles(old => old.map(b => b.id === bike.id ? { ...b, status: 'In use' } : b))
-    setSelectedBike(null); navigate('activeRide'); setToast(`Ride started on ${bike.id}. Have a good ride!`)
+  if (bike.status !== 'Available') return
+
+  try {
+    const result = await api.startRide(bike.id)
+    setActiveRideId(result.rideId)
+    setRideBike(bike)
+    setRideSeconds(0)
+
+    setBicycles(old =>
+      old.map(b =>
+        b.id === bike.id
+          ? { ...b, status: 'In use' }
+          : b,
+      ),
+    )
+
+    setSelectedBike(null)
+    navigate('activeRide')
+    setToast(`Ride started on ${bike.id}. Have a good ride!`)
+  } catch (error) {
+    setToast(
+      error instanceof Error
+        ? error.message
+        : 'Could not start the ride. Please try again.',
+    )
   }
+}
   const endRide = async () => {
-    try { await api.endRide('DEMO-ACTIVE') } catch { /* demo fallback */ }
-    if (rideBike) {
-      setRides(old => [{ id: `R-${Date.now().toString().slice(-4)}`, bicycleId: rideBike.id, startLocation: rideBike.location, endLocation: 'Academic Block', date: 'Just now', duration: `${Math.max(1, Math.floor(rideSeconds / 60))} min`, distance: '1.2 km', status: 'Completed' }, ...old])
-      setBicycles(old => old.map(b => b.id === rideBike.id ? { ...b, status: 'Available', location: 'Academic Block' } : b))
-    }
-    setRideBike(null); navigate('history'); setToast('Ride ended. Thanks for riding green!')
+  if (!rideBike || !activeRideId) {
+    setToast('No valid active ride was found.')
+    return
   }
-  const submitReport = async (e: FormEvent) => {
-    e.preventDefault()
-    try { await api.submitReport({ bicycleId: issueBike, issue, description }) } catch { /* demo fallback */ }
-    setReports(old => [{ id: `P-${Date.now().toString().slice(-3)}`, bicycleId: issueBike, issue, location: bicycles.find(b => b.id === issueBike)?.location || 'Campus', status: 'Open', reportedAt: 'Just now' }, ...old])
-    setSubmitted(true); setDescription(''); setToast('Thanks — your report has been received.')
+
+  try {
+    await api.endRide(activeRideId)
+
+    setBicycles(old =>
+      old.map(b =>
+        b.id === rideBike.id
+          ? { ...b, status: 'Available' }
+          : b,
+      ),
+    )
+
+    setRideBike(null)
+    setActiveRideId(null)
+    setRideSeconds(0)
+
+    navigate('history')
+    setToast('Ride ended successfully.')
+  } catch (error) {
+    setToast(
+      error instanceof Error
+        ? error.message
+        : 'Could not end the ride. Please try again.',
+    )
   }
+}
+
+const submitReport = async (e: FormEvent) => {
+  e.preventDefault()
+  try {
+    await api.submitReport({
+      bicycleId: issueBike,
+      issue,
+      description,
+    })
+    setSubmitted(true)
+    setToast('Report submitted successfully.')
+  } catch (error) {
+    setToast(
+      error instanceof Error
+        ? error.message
+        : 'Could not submit the report. Please try again.',
+    )
+  }
+}
+
   
   const renderOverview = () => role === 'student' ? <div className="content-stack">
     <section className="welcome-banner">
@@ -131,15 +221,14 @@ function UniRideDashboard({ profile, onSignOut }: { profile: UserProfile; onSign
   </div>
 
   const renderActiveRide = () => <div className="content-stack">
-    {rideBike ? <section className="active-ride-layout"><div className="active-ride-main panel"><div className="ride-live-row"><span className="live-pill"><i /> RIDE IN PROGRESS</span><span className="ride-id">Ride ID · DEMO-001</span></div><div className="ride-bike-orbit"><div className="orbit-ring" /><Bike size={100} strokeWidth={1.15} /></div><h2>Enjoy the ride, <span>{firstName}.</span></h2><p className="muted-text">You’re riding {rideBike.id} · {rideBike.label}</p><div className="ride-timer">{String(Math.floor(rideSeconds / 3600)).padStart(2,'0')}:{String(Math.floor((rideSeconds % 3600) / 60)).padStart(2,'0')}:{String(rideSeconds % 60).padStart(2,'0')}</div><span className="muted-text">Time on your ride</span><div className="ride-progress"><span /></div><div className="ride-facts"><div><MapPin size={17} /><span>Started at</span><strong>{rideBike.location}</strong></div><div><Navigation size={17} /><span>Distance</span><strong>1.2 km <small>· demo</small></strong></div></div><button className="button button-danger button-lg full-width" onClick={endRide}>End ride <ArrowRight size={17} /></button><p className="tiny-note">Please park in a designated zone before ending your ride.</p></div><div className="content-stack"><section className="panel"><div className="panel-heading"><div><h3>Near your route</h3><p>Campus map preview</p></div></div><CampusMap compact /></section><section className="parking-card"><div className="parking-icon"><MapPin size={20} /></div><h3>Ready to park?</h3><p>Look for a designated parking zone near your destination.</p><button className="button button-outline full-width" onClick={() => setToast('Parking zones will be connected to the backend.')}>View parking zones</button></section></div></section> : <div className="empty-state ride-empty"><div className="empty-icon"><Bike size={42} /></div><h2>No active ride right now.</h2><p>Your next campus trip is just a bicycle away.</p><button className="button button-primary button-lg" onClick={() => navigate('bicycles')}>Find a bicycle <ArrowRight size={17} /></button><div className="empty-footnote"><ShieldCheck size={15} /> Ride details will appear here after you start a ride.</div></div>}
+    {rideBike ? <section className="active-ride-layout"><div className="active-ride-main panel"><div className="ride-live-row"><span className="live-pill"><i /> RIDE IN PROGRESS</span> <span className="ride-id">Ride ID · {activeRideId ?? 'Unavailable'}</span></div><div className="ride-bike-orbit"><div className="orbit-ring" /><Bike size={100} strokeWidth={1.15} /></div><h2>Enjoy the ride, <span>{firstName}.</span></h2><p className="muted-text">You’re riding {rideBike.id} · {rideBike.label}</p><div className="ride-timer">{String(Math.floor(rideSeconds / 3600)).padStart(2,'0')}:{String(Math.floor((rideSeconds % 3600) / 60)).padStart(2,'0')}:{String(rideSeconds % 60).padStart(2,'0')}</div><span className="muted-text">Time on your ride</span><div className="ride-progress"><span /></div><div className="ride-facts"><div><MapPin size={17} /><span>Started at</span><strong>{rideBike.location}</strong></div><div><Navigation size={17} /><span>Distance</span><strong>1.2 km <small>· demo</small></strong></div></div><button className="button button-danger button-lg full-width" onClick={endRide}>End ride <ArrowRight size={17} /></button><p className="tiny-note">Please park in a designated zone before ending your ride.</p></div><div className="content-stack"><section className="panel"><div className="panel-heading"><div><h3>Near your route</h3><p>Campus map preview</p></div></div><CampusMap compact /></section><section className="parking-card"><div className="parking-icon"><MapPin size={20} /></div><h3>Ready to park?</h3><p>Look for a designated parking zone near your destination.</p><button className="button button-outline full-width" onClick={() => setToast('Parking zones will be connected to the backend.')}>View parking zones</button></section></div></section> : <div className="empty-state ride-empty"><div className="empty-icon"><Bike size={42} /></div><h2>No active ride right now.</h2><p>Your next campus trip is just a bicycle away.</p><button className="button button-primary button-lg" onClick={() => navigate('bicycles')}>Find a bicycle <ArrowRight size={17} /></button><div className="empty-footnote"><ShieldCheck size={15} /> Ride details will appear here after you start a ride.</div></div>}
   </div>
 
   const renderHistory = () => <div className="content-stack">
     <section className="history-summary"><div><div className="eyebrow"><TrendingUp size={14} /> YOUR RIDE JOURNEY</div><h2>Look how far<br /><span>you’ve gone.</span></h2><p>Every trip counts, even the short ones.</p></div><div className="history-big-stat"><div className="history-stat-icon"><Bike size={25} /></div><strong>{rides.length}</strong><span>recorded rides</span></div><div className="history-big-stat"><div className="history-stat-icon green"><Leaf size={25} /></div><strong>4.8 kg</strong><span>estimated CO₂ saved</span></div></section>
     <section className="panel history-panel"><div className="panel-heading"><div><h3>All rides</h3><p>Your recent ride activity</p></div><button className="button button-outline" onClick={() => setToast('Export will be available after backend integration.')}><ArrowDownRight size={15} /> Export</button></div><div className="table-wrap"><table><thead><tr><th>Ride / bicycle</th><th>From → To</th><th>Date</th><th>Duration</th><th>Distance</th><th>Status</th></tr></thead><tbody>{rides.map(r => <tr key={r.id}><td><div className="table-primary">{r.bicycleId}</div><div className="table-secondary">{r.id}</div></td><td><div className="route-cell">{r.startLocation}<ArrowRight size={13} />{r.endLocation}</div></td><td>{r.date}</td><td>{r.duration}</td><td>{r.distance}</td><td><span className={`status-label ${r.status.toLowerCase()}`}>{r.status}</span></td></tr>)}</tbody></table></div></section>
   </div>
-
-  const renderReport = () => <div className="content-stack report-layout"><section className="report-intro"><div className="report-icon"><CircleHelp size={27} /></div><div className="eyebrow">HELP KEEP UniRide SAFE</div><h2>Spotted something?<br /><span>Tell us about it.</span></h2><p>Flat tyre, loose seat, or a bicycle that needs a little care? Send a report and the campus team can take it from there.</p><div className="report-promise"><Check size={16} /> Reports are reviewed by the UniRide team</div><div className="report-doodle"><Bike size={115} strokeWidth={1.05} /></div></section><section className="panel report-form-panel">{submitted ? <div className="success-state"><div className="success-check"><Check size={30} /></div><h2>Thanks for looking out.</h2><p>Your demo report has been recorded in this session.</p><button className="button button-primary" onClick={() => { setSubmitted(false); setPage('overview') }}>Back to overview</button><button className="text-button" onClick={() => setSubmitted(false)}>Submit another report</button></div> : <form onSubmit={submitReport}><div className="form-heading"><h3>Report a bicycle problem</h3><p>Tell us what happened and where.</p></div><label className="field-label">Bicycle ID<select value={issueBike} onChange={e => setIssueBike(e.target.value)}>{bicycles.map(b => <option key={b.id} value={b.id}>{b.id} · {b.location}</option>)}</select></label><label className="field-label">What’s the issue?<select value={issue} onChange={e => setIssue(e.target.value)}><option>Damaged bicycle</option><option>Flat tyre</option><option>Brake issue</option><option>Loose seat or handle</option><option>QR code not working</option><option>Parking zone issue</option><option>Other</option></select></label><label className="field-label">Anything else? <span className="optional-text">Optional</span><textarea rows={4} value={description} onChange={e => setDescription(e.target.value)} placeholder="Add a few details to help us understand the problem..." /></label><div className="form-note"><ShieldCheck size={16} /> You can submit this demo form without uploading a photo.</div><button className="button button-primary button-lg full-width" type="submit">Send report <ArrowRight size={17} /></button></form>}</section></div>
+  const renderReport = () => <div className="content-stack report-layout"><section className="report-intro"><div className="report-icon"><CircleHelp size={27} /></div><div className="eyebrow">HELP KEEP UniRide SAFE</div><h2>Spotted something?<br /><span>Tell us about it.</span></h2><p>Flat tyre, loose seat, or a bicycle that needs a little care? Send a report and the campus team can take it from there.</p><div className="report-promise"><Check size={16} /> Reports are reviewed by the UniRide team</div><div className="report-doodle"><Bike size={115} strokeWidth={1.05} /></div></section><section className="panel report-form-panel">{submitted ? <div className="success-state"><div className="success-check"><Check size={30} /></div><h2>Thanks for looking out.</h2><p>Your demo report has been recorded in this session.</p><button className="button button-primary" onClick={() => { setSubmitted(false); setPage('overview') }}>Back to overview</button><button className="text-button" onClick={() => setSubmitted(false)}>Submit another report</button></div> : <form onSubmit={submitReport}><div className="form-heading"><h3>Report a bicycle problem</h3><p>Tell us what happened and where.</p></div><label className="field-label">Bicycle ID<select value={issueBike} onChange={e => setIssueBike(e.target.value)}>{bicycles.map(b => <option key={b.id} value={b.id}>{b.id} · {b.location}</option>)}</select></label><label className="field-label">What’s the issue?<select value={issue} onChange={e => setIssue(e.target.value)}><option>Damaged bicycle</option><option>Flat tyre</option><option>Brake issue</option><option>Loose seat or handle</option><option>QR code not working</option><option>Parking zone issue</option><option>Other</option></select></label><label className="field-label"> Description<span className="optional-text">Required</span><textarea rows={4} value={description} onChange={e => setDescription(e.target.value)} placeholder="Add a few details to help us understand the problem..." required/></label><div className="form-note"><ShieldCheck size={16} /> You can submit this demo form without uploading a photo.</div><button className="button button-primary button-lg full-width" type="submit">Send report <ArrowRight size={17} /></button></form>}</section></div>
 
   const renderAdminBicycles = () => <div className="content-stack"><section className="admin-welcome compact-admin"><div><div className="eyebrow"><Bike size={14} /> FLEET MANAGEMENT</div><h2>Every bicycle,<br /><span>in good hands.</span></h2><p>Monitor status and keep the campus fleet moving.</p></div><div className="admin-welcome-mark"><Bike size={80} strokeWidth={1.1} /><span>FLEET / {bicycles.length} UNITS</span></div></section><div className="stats-grid"><StatCard label="Total bicycles" value={String(bicycles.length)} note="Across campus" icon={Bike} /><StatCard label="Available" value={String(availableCount)} note="Ready to ride" icon={Check} tone="sage" /><StatCard label="In use" value={String(bicycles.filter(b => b.status === 'In use').length)} note="Currently out" icon={Navigation} tone="blue" /><StatCard label="Maintenance" value={String(bicycles.filter(b => b.status === 'Maintenance').length)} note="Needs attention" icon={Zap} tone="yellow" /></div><section className="panel history-panel"><div className="panel-heading"><div><h3>Campus bicycle fleet</h3><p>Demo inventory · changes reset on refresh</p></div><button className="button button-primary" onClick={() => { const id = `B-${String(Math.floor(Math.random()*800)+200)}`; setBicycles(old => [{ id, label:'New Campus Ride', location:'Central Library', distance:'2 min walk', status:'Available', lastServiced:'Not serviced yet', color:'#e0f1e8' }, ...old]); setToast(`${id} added to demo fleet.`) }}><Plus size={16} /> Add bicycle</button></div><div className="table-wrap"><table><thead><tr><th>Bicycle</th><th>Location</th><th>Status</th><th>Last serviced</th><th>Action</th></tr></thead><tbody>{bicycles.map(b => <tr key={b.id}><td><div className="bike-table-cell"><div className="tiny-bike"><Bike size={22} /></div><div><div className="table-primary">{b.id}</div><div className="table-secondary">{b.label}</div></div></div></td><td>{b.location}</td><td><span className={`status-chip ${b.status.toLowerCase().replace(' ', '-')}`}><i />{b.status}</span></td><td>{b.lastServiced}</td><td><button className="small-action" onClick={() => { setSelectedBike(b); }}>View details <ChevronRight size={14} /></button></td></tr>)}</tbody></table></div></section></div>
 
