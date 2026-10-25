@@ -16,6 +16,40 @@ import ResetPasswordPage from './components/ResetPasswordPage'
 import InteractiveCampusMap from "./components/InteractiveCampusMap";
 import QRScanner from "./components/QRScanner";
 
+const getCurrentLocation = (): Promise<{
+  latitude: number
+  longitude: number
+}> => {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation is not supported by this browser.'))
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        })
+      },
+      error => {
+        reject(
+          new Error(
+            error.code === 1
+              ? 'Please allow location access to start your ride.'
+              : 'Could not get your location. Please try again.',
+          ),
+        )
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      },
+    )
+  })
+}
 
 const pageMeta: Record<Page, { title: string; subtitle: string }> = {
   overview: { title: 'Good day, Harshita', subtitle: 'A little less rush. A little more green.' },
@@ -96,6 +130,46 @@ useEffect(() => {
     const timer = window.setInterval(() => setRideSeconds(s => s + 1), 1000)
     return () => window.clearInterval(timer)
   }, [rideBike])
+  // Record the rider's location every 15 seconds while a real ride is active.
+  useEffect(() => {
+    if (!rideBike || !activeRideId) return
+    if (!navigator.geolocation) {
+      setToast('GPS tracking is not supported by this browser.')
+      return
+    }
+
+    let lastSentAt = 0
+    let requestInProgress = false
+
+    const watchId = navigator.geolocation.watchPosition(
+      position => {
+        const now = Date.now()
+        if (requestInProgress || now - lastSentAt < 15000) return
+
+        requestInProgress = true
+        lastSentAt = now
+
+        void api.recordRideLocation(activeRideId, {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }).catch(error => {
+          console.error('Could not record ride GPS location:', error)
+        }).finally(() => {
+          requestInProgress = false
+        })
+      },
+      error => {
+        console.error('Ride GPS tracking error:', error.message)
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 15000,
+      },
+    )
+
+    return () => navigator.geolocation.clearWatch(watchId)
+  }, [rideBike, activeRideId])
   useEffect(() => {
     if (!toast) return
     const timer = window.setTimeout(() => setToast(''), 3200)
@@ -116,7 +190,8 @@ useEffect(() => {
   if (bike.status !== 'Available') return
 
   try {
-    const result = await api.startRide(bike.id)
+    const startLocation = await getCurrentLocation()
+const result = await api.startRide(bike.id, startLocation)
     setActiveRideId(result.rideId)
     setRideBike(bike)
     setRideSeconds(0)
@@ -147,7 +222,17 @@ useEffect(() => {
   }
 
   try {
-    await api.endRide(activeRideId)
+    let endLocation: { latitude: number; longitude: number } | undefined
+    let finalLocationUnavailable = false
+
+    try {
+      endLocation = await getCurrentLocation()
+    } catch {
+      // Ending the ride should still be possible if GPS is unavailable.
+      finalLocationUnavailable = true
+    }
+
+    await api.endRide(activeRideId, endLocation)
 
     setBicycles(old =>
       old.map(b =>
@@ -162,7 +247,11 @@ useEffect(() => {
     setRideSeconds(0)
 
     navigate('history')
-    setToast('Ride ended successfully.')
+    setToast(
+      finalLocationUnavailable
+        ? 'Ride ended, but the final GPS location was unavailable.'
+        : 'Ride ended successfully.',
+    )
   } catch (error) {
     setToast(
       error instanceof Error
@@ -221,7 +310,7 @@ const submitReport = async (e: FormEvent) => {
   </div>
 
   const renderActiveRide = () => <div className="content-stack">
-    {rideBike ? <section className="active-ride-layout"><div className="active-ride-main panel"><div className="ride-live-row"><span className="live-pill"><i /> RIDE IN PROGRESS</span> <span className="ride-id">Ride ID · {activeRideId ?? 'Unavailable'}</span></div><div className="ride-bike-orbit"><div className="orbit-ring" /><Bike size={100} strokeWidth={1.15} /></div><h2>Enjoy the ride, <span>{firstName}.</span></h2><p className="muted-text">You’re riding {rideBike.id} · {rideBike.label}</p><div className="ride-timer">{String(Math.floor(rideSeconds / 3600)).padStart(2,'0')}:{String(Math.floor((rideSeconds % 3600) / 60)).padStart(2,'0')}:{String(rideSeconds % 60).padStart(2,'0')}</div><span className="muted-text">Time on your ride</span><div className="ride-progress"><span /></div><div className="ride-facts"><div><MapPin size={17} /><span>Started at</span><strong>{rideBike.location}</strong></div><div><Navigation size={17} /><span>Distance</span><strong>1.2 km <small>· demo</small></strong></div></div><button className="button button-danger button-lg full-width" onClick={endRide}>End ride <ArrowRight size={17} /></button><p className="tiny-note">Please park in a designated zone before ending your ride.</p></div><div className="content-stack"><section className="panel"><div className="panel-heading"><div><h3>Near your route</h3><p>Campus map preview</p></div></div><CampusMap compact /></section><section className="parking-card"><div className="parking-icon"><MapPin size={20} /></div><h3>Ready to park?</h3><p>Look for a designated parking zone near your destination.</p><button className="button button-outline full-width" onClick={() => setToast('Parking zones will be connected to the backend.')}>View parking zones</button></section></div></section> : <div className="empty-state ride-empty"><div className="empty-icon"><Bike size={42} /></div><h2>No active ride right now.</h2><p>Your next campus trip is just a bicycle away.</p><button className="button button-primary button-lg" onClick={() => navigate('bicycles')}>Find a bicycle <ArrowRight size={17} /></button><div className="empty-footnote"><ShieldCheck size={15} /> Ride details will appear here after you start a ride.</div></div>}
+    {rideBike ? <section className="active-ride-layout"><div className="active-ride-main panel"><div className="ride-live-row"><span className="live-pill"><i /> RIDE IN PROGRESS</span> <span className="ride-id">Ride ID · {activeRideId ?? 'Unavailable'}</span></div><div className="ride-bike-orbit"><div className="orbit-ring" /><Bike size={100} strokeWidth={1.15} /></div><h2>Enjoy the ride, <span>{firstName}.</span></h2><p className="muted-text">You’re riding {rideBike.id} · {rideBike.label}</p><div className="ride-timer">{String(Math.floor(rideSeconds / 3600)).padStart(2,'0')}:{String(Math.floor((rideSeconds % 3600) / 60)).padStart(2,'0')}:{String(rideSeconds % 60).padStart(2,'0')}</div><span className="muted-text">Time on your ride</span><div className="ride-progress"><span /></div><div className="ride-facts"><div><MapPin size={17} /><span>Started at</span><strong>{rideBike.location}</strong></div><div><Navigation size={17} /><span>Distance</span><strong>GPS tracked <small>· distance calculation pending</small></strong></div></div><button className="button button-danger button-lg full-width" onClick={endRide}>End ride <ArrowRight size={17} /></button><p className="tiny-note">Please park in a designated zone before ending your ride.</p></div><div className="content-stack"><section className="panel"><div className="panel-heading"><div><h3>Near your route</h3><p>Campus map preview</p></div></div><CampusMap compact /></section><section className="parking-card"><div className="parking-icon"><MapPin size={20} /></div><h3>Ready to park?</h3><p>Look for a designated parking zone near your destination.</p><button className="button button-outline full-width" onClick={() => setToast('Parking zones will be connected to the backend.')}>View parking zones</button></section></div></section> : <div className="empty-state ride-empty"><div className="empty-icon"><Bike size={42} /></div><h2>No active ride right now.</h2><p>Your next campus trip is just a bicycle away.</p><button className="button button-primary button-lg" onClick={() => navigate('bicycles')}>Find a bicycle <ArrowRight size={17} /></button><div className="empty-footnote"><ShieldCheck size={15} /> Ride details will appear here after you start a ride.</div></div>}
   </div>
 
   const renderHistory = () => <div className="content-stack">
