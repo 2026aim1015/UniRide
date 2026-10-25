@@ -27,9 +27,12 @@ def current_profile(token: str = Depends(bearer_token), db: Session = Depends(ge
         user_id = uuid.UUID(user["id"])
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=401, detail="Could not validate Supabase token")
-
+    except Exception as exc:
+        print(f"Supabase validation error: {type(exc).__name__}: {exc}")
+        raise HTTPException(
+            status_code=401,
+            detail="Could not validate Supabase token",
+    )
     profile = db.get(Profile, user_id)
     if profile is None:
         metadata = user.get("user_metadata") or {}
