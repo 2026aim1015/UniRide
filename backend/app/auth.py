@@ -1,15 +1,19 @@
 import uuid
 import httpx
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.models import Profile
 
-def bearer_token(authorization: str | None = Header(default=None)) -> str:
-    if not authorization or not authorization.lower().startswith("bearer "):
+# Makes the "Authorize" button appear in /docs. auto_error=False keeps our own 401 message.
+bearer_scheme = HTTPBearer(auto_error=False)
+
+def bearer_token(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> str:
+    if credentials is None or not credentials.credentials.strip():
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token required")
-    return authorization.split(" ", 1)[1].strip()
+    return credentials.credentials.strip()
 
 def current_profile(token: str = Depends(bearer_token), db: Session = Depends(get_db)) -> Profile:
     settings = get_settings()
