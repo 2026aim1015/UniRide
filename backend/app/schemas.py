@@ -25,6 +25,13 @@ class ZoneCreate(BaseModel):
     radius_meters: int = Field(gt=0, le=10000)
     is_active: bool = True
 
+class ZoneUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    radius_meters: int | None = Field(default=None, gt=0, le=10000)
+    is_active: bool | None = None
+
 class ZoneOut(ORMModel):
     id: uuid.UUID
     name: str
