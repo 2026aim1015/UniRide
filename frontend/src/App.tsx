@@ -301,7 +301,7 @@ const submitReport = async (e: FormEvent) => {
 
   const renderBicycles = () => <div className="content-stack">
     <section className="page-intro-card"><div><div className="eyebrow"><Compass size={14} /> FIND YOUR NEXT RIDE</div><h2>Pick your <span>campus companion.</span></h2><p>Search by bicycle ID, landmark, or location. Availability is shown for demo data.</p></div><div className="intro-illustration"><Bike size={90} strokeWidth={1.1} /></div></section>
-    <div className="qr-unlock-section"> <button className="button button-primary" onClick={() => setShowQRScanner(true)}> <QrCode size={18} />Scan QR to Unlock</button>{showQRScanner && (<QRScanner onScan={(decodedText) => { setShowQRScanner(false);const bicycleId = decodedText.trim();const bike = bicycles.find((b) => b.id.toLowerCase() === bicycleId.toLowerCase()); if (!bike) {setToast(`Bicycle ${bicycleId} not found.`);return;}setSelectedBike(bike);}}onClose={() => setShowQRScanner(false)}/>)}</div>
+    <div className="qr-unlock-section"> <button className="button button-primary" onClick={() => setShowQRScanner(true)}> <QrCode size={18} />Scan QR to Unlock</button>{showQRScanner && (<QRScanner onScan={(decodedText) => {setShowQRScanner(false); const scannedQrCodeId = decodedText.trim();const bike = bicycles.find((b) =>b.qrCodeId?.trim().toLowerCase() ===  scannedQrCodeId.toLowerCase() );if (!bike) {setToast('No bicycle found for this QR code.');return;}setSelectedBike(bike);}}onClose={() => setShowQRScanner(false)}/>)}</div>
     <div className="bicycle-toolbar"><label className="search-field"><Search size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Try “Library” or “B-023”..." /></label><div className="filter-pills">{(['All', 'Available', 'In use', 'Maintenance'] as const).map(s => <button key={s} className={`filter-pill ${statusFilter === s ? 'filter-selected' : ''}`} onClick={() => setStatusFilter(s)}>{s}</button>)}</div></div>
     <div className="results-summary"><span><strong>{filteredBikes.length}</strong> bicycles found</span><span><i className="legend-dot green-dot" /> Availability can change</span></div>
     <div className="bicycle-grid">{filteredBikes.map(b => <BicycleCard key={b.id} bicycle={b} onSelect={setSelectedBike} onRide={startRide} />)}</div>
@@ -429,3 +429,4 @@ export default function App() {
 
   return <UniRideDashboard profile={profile} onSignOut={handleSignOut} />
 }
+
