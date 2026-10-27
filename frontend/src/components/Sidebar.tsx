@@ -48,7 +48,7 @@ export function Sidebar({ role, page, onNavigate, onRoleChange, canSwitchRole, u
         {items.map(item => {
           const Icon = item.icon
           return <button key={item.id} className={`nav-item ${page === item.id ? 'nav-active' : ''}`} onClick={() => { onNavigate(item.id); onClose() }}>
-            <Icon size={18} /><span>{item.label}</span>{item.id === 'report' && <span className="nav-badge">2</span>}
+            <Icon size={18} /><span>{item.label}</span>
           </button>
         })}
       </nav>
