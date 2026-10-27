@@ -32,6 +32,13 @@ interface ApiRide {
   start_zone_id: string | null
   end_zone_id: string | null
 }
+interface ApiLocationEvent {
+  id: string
+  ride_id: string
+  latitude: number
+  longitude: number
+  recorded_at: string
+}
 
 interface ApiReport {
   id: string
@@ -69,6 +76,7 @@ function convertBicycle(item: ApiBicycle): Bicycle {
 
   return {
     id: item.id,
+    qrCodeId: item.qr_code_id,
     label: item.display_name,
     location,
     distance: 'Distance unavailable',
@@ -78,6 +86,29 @@ function convertBicycle(item: ApiBicycle): Bicycle {
   }
 }
 function convertRide(item: ApiRide): Ride {
+  const calculateDuration = (
+  startTime: string,
+  endTime: string | null,
+): string => {
+  if (!endTime) return 'In progress'
+
+  const start = new Date(startTime).getTime()
+  const end = new Date(endTime).getTime()
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+    return 'Unavailable'
+  }
+
+  const totalMinutes = Math.floor((end - start) / 60000)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  if (hours > 0) {
+    return `${hours} hr ${minutes} min`
+  }
+
+  return `${minutes} min`
+}
   const formatLocation = (
     latitude: number | null,
     longitude: number | null,
@@ -108,15 +139,48 @@ function convertRide(item: ApiRide): Ride {
       item.end_zone_id,
     ),
     date: new Date(item.start_time).toLocaleString(),
-    duration: 'Not calculated yet',
-    distance: 'Not calculated yet',
+    duration: calculateDuration(item.start_time, item.end_time),
+    distance: 'GPS data unavailable',
     status:
       item.status === 'completed'
         ? 'Completed'
         : 'Active',
   }
 }
+const calculateRideDistance = (points: ApiLocationEvent[]): string => {
+  if (points.length < 2) {
+    return 'GPS data unavailable'
+  }
 
+  const toRadians = (degrees: number) => (degrees * Math.PI) / 180
+  const earthRadiusMeters = 6371000
+  let totalMeters = 0
+
+  for (let i = 1; i < points.length; i++) {
+    const previous = points[i - 1]
+    const current = points[i]
+
+    const lat1 = toRadians(previous.latitude)
+    const lat2 = toRadians(current.latitude)
+    const deltaLat = toRadians(current.latitude - previous.latitude)
+    const deltaLon = toRadians(current.longitude - previous.longitude)
+
+    const a =
+      Math.sin(deltaLat / 2) ** 2 +
+      Math.cos(lat1) *
+        Math.cos(lat2) *
+        Math.sin(deltaLon / 2) ** 2
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    totalMeters += earthRadiusMeters * c
+  }
+
+  if (totalMeters < 1000) {
+    return `${Math.round(totalMeters)} m`
+  }
+
+  return `${(totalMeters / 1000).toFixed(2)} km`
+}
 
 function convertReport(item: ApiReport): ProblemReport {
   const statusMap: Record<string, ProblemReport['status']> = {
@@ -199,8 +263,24 @@ export const api = {
 
   async getRides(): Promise<Ride[]> {
   if (USE_DEMO) return demoRides
+
   const items = await request<ApiRide[]>('/rides/me')
-  return items.map(convertRide)
+
+  return Promise.all(
+    items.map(async (item) => {
+      const points = await api.getRideLocations(item.id)
+
+      return {
+        ...convertRide(item),
+        distance: calculateRideDistance(points),
+      }
+    }),
+  )
+},
+async getRideLocations(rideId: string): Promise<ApiLocationEvent[]> {
+  return request<ApiLocationEvent[]>(
+    `/rides/${encodeURIComponent(rideId)}/locations`,
+  )
 },
 
   

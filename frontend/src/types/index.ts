@@ -3,6 +3,7 @@ export type AppRole = 'student' | 'admin'
 
 export interface Bicycle {
   id: string
+  qrCodeId?: string
   label: string
   location: string
   distance: string
@@ -10,6 +11,7 @@ export interface Bicycle {
   battery?: string
   lastServiced: string
   color: string
+  
 }
 
 export interface Ride {

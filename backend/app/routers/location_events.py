@@ -34,3 +34,36 @@ def record_location(ride_id: uuid.UUID, payload: LocationEventIn, db: Session = 
     db.commit()
     db.refresh(event)
     return LocationEventOut(id=str(event.id), ride_id=str(event.ride_id), latitude=event.latitude, longitude=event.longitude, recorded_at=event.recorded_at.isoformat())
+@router.get("/{ride_id}/locations", response_model=list[LocationEventOut])
+def get_ride_locations(
+    ride_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    profile: Profile = Depends(current_profile),
+):
+    ride = db.get(Ride, ride_id)
+
+    if ride is None:
+        raise HTTPException(status_code=404, detail="Ride not found")
+
+    if ride.user_id != profile.id and profile.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot view another user's ride locations",
+        )
+
+    events = db.scalars(
+        select(RideLocationEvent)
+        .where(RideLocationEvent.ride_id == ride.id)
+        .order_by(RideLocationEvent.recorded_at.asc())
+    ).all()
+
+    return [
+        LocationEventOut(
+            id=str(event.id),
+            ride_id=str(event.ride_id),
+            latitude=event.latitude,
+            longitude=event.longitude,
+            recorded_at=event.recorded_at.isoformat(),
+        )
+        for event in events
+    ]
