@@ -16,3 +16,4 @@
   overflow: hidden;
 }
 
+.report-status-grid{grid-template-columns:repeat(4,1fr)}.rejected-track{background:#9aa49c}.report-symbol.rejected{background:#eceeea;color:#7c877f}.status-label.rejected{background:#eceeea;color:#6b776e}

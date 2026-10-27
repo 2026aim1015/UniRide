@@ -29,8 +29,9 @@ export interface ProblemReport {
   id: string
   bicycleId: string
   issue: string
+  description?: string
   location: string
-  status: 'Open' | 'In progress' | 'Resolved'
+  status: 'Open' | 'In progress' | 'Resolved' | 'Rejected'
   reportedAt: string
 }
 

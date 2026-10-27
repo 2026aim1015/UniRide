@@ -187,19 +187,26 @@ function convertReport(item: ApiReport): ProblemReport {
     open: 'Open',
     investigating: 'In progress',
     resolved: 'Resolved',
-    rejected: 'Resolved',
+    rejected: 'Rejected',
   }
 
   return {
     id: item.id,
     bicycleId: item.bicycle_id,
     issue: item.category,
+    description: item.description,
     location: 'Location not recorded',
     status: statusMap[item.status] ?? 'Open',
     reportedAt: new Date(item.created_at).toLocaleString(),
   }
 }
 
+const reportStatusToApi: Record<ProblemReport['status'], string> = {
+  Open: 'open',
+  'In progress': 'investigating',
+  Resolved: 'resolved',
+  Rejected: 'rejected',
+}
 
 async function request<T>(
   path: string,
@@ -290,6 +297,28 @@ async getReports(): Promise<ProblemReport[]> {
 
   const items = await request<ApiReport[]>('/reports/me')
   return items.map(convertReport)
+},
+async getAllReports(): Promise<ProblemReport[]> {
+  // Admin only: every report from every student.
+  if (USE_DEMO) return demoReports
+  const items = await request<ApiReport[]>('/reports')
+  return items.map(convertReport)
+},
+async updateReportStatus(
+  reportId: string,
+  status: ProblemReport['status'],
+): Promise<ProblemReport> {
+  if (USE_DEMO) {
+    throw new Error('Demo mode is not supported for updating reports.')
+  }
+  const item = await request<ApiReport>(
+    `/reports/${encodeURIComponent(reportId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ status: reportStatusToApi[status] }),
+    },
+  )
+  return convertReport(item)
 },
 
 
