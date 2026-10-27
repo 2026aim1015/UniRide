@@ -8,6 +8,7 @@ import {
   TrendingUp, Wrench, X, Zap, QrCode
 } from 'lucide-react'
 import { Sidebar, type Page } from './components/Sidebar'
+import ZonesPage from './components/admin/ZonesPage'
 import { Topbar } from './components/Topbar'
 import { BicycleCard } from './components/BicycleCard'
 import { api } from './services/api'
@@ -15,6 +16,7 @@ import type { AppRole, Bicycle, BicycleStatus, ProblemReport, Ride, UserProfile 
 import ResetPasswordPage from './components/ResetPasswordPage'
 import InteractiveCampusMap from "./components/InteractiveCampusMap";
 import QRScanner from "./components/QRScanner";
+
 
 const getCurrentLocation = (): Promise<{
   latitude: number
@@ -59,6 +61,7 @@ const pageMeta: Record<Page, { title: string; subtitle: string }> = {
   report: { title: 'Something not right?', subtitle: 'Let us know. We’ll get it sorted.' },
   adminBicycles: { title: 'Bicycle management', subtitle: 'Keep the campus fleet ready to roll.' },
   adminReports: { title: 'Reported issues', subtitle: 'A little maintenance goes a long way.' },
+  adminZones: { title: 'Parking zones', subtitle: 'Manage campus parking and ride return zones.' },
 }
 
 function Modal({ children, onClose }: { children: ReactNode; onClose: () => void }) {
@@ -352,6 +355,7 @@ const submitReport = async (e: FormEvent) => {
         {page === 'report' && renderReport()}
         {page === 'adminBicycles' && renderAdminBicycles()}
         {page === 'adminReports' && renderAdminReports()}
+        {page === 'adminZones' && role === 'admin' && <ZonesPage />}
         <footer className="app-footer"><div className="footer-brand"><Bike size={18} /> UniRide<span>.</span></div><span>Made for a greener campus · IIT Ropar</span>{import.meta.env.VITE_USE_DEMO_DATA === 'true' && <span className="footer-demo"><i /> DEMO DATA</span>}</footer>
       </div>
     </main>
