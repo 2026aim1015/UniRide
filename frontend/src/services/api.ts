@@ -40,6 +40,15 @@ interface ApiLocationEvent {
   recorded_at: string
 }
 
+interface ApiParkingZone {
+  id: string
+  name: string
+  latitude: number
+  longitude: number
+  radius_meters: number
+  is_active: boolean
+}
+
 interface ApiReport {
   id: string
   bicycle_id: string
@@ -55,6 +64,17 @@ interface ApiReport {
 interface RideCoordinates {
   latitude: number
   longitude: number
+}
+
+const distanceBetweenMeters = (a: RideCoordinates, b: RideCoordinates): number => {
+  const radians = (degrees: number) => (degrees * Math.PI) / 180
+  const lat1 = radians(a.latitude)
+  const lat2 = radians(b.latitude)
+  const deltaLat = radians(b.latitude - a.latitude)
+  const deltaLon = radians(b.longitude - a.longitude)
+  const h = Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2
+  return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
 }
 
 function convertBicycle(item: ApiBicycle): Bicycle {
@@ -171,7 +191,8 @@ const calculateRideDistance = (points: ApiLocationEvent[]): string => {
         Math.cos(lat2) *
         Math.sin(deltaLon / 2) ** 2
 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    const safeA = Math.min(1, Math.max(0, a))
+    const c = 2 * Math.atan2(Math.sqrt(safeA), Math.sqrt(1 - safeA))
     totalMeters += earthRadiusMeters * c
   }
 
@@ -239,6 +260,27 @@ async function request<T>(
   }
 
   return response.json() as Promise<T>
+}
+
+async function findParkingZone(location: RideCoordinates): Promise<string> {
+  const zones = await request<ApiParkingZone[]>('/parking-zones')
+  const eligible = zones
+    .filter(zone => zone.is_active)
+    .map(zone => ({
+      zone,
+      distance: distanceBetweenMeters(location, {
+        latitude: zone.latitude,
+        longitude: zone.longitude,
+      }),
+    }))
+    .filter(item => item.distance <= item.zone.radius_meters)
+    .sort((a, b) => a.distance - b.distance)
+
+  if (!eligible.length) {
+    throw new Error('You must be inside an active parking zone to start or end a ride.')
+  }
+
+  return eligible[0].zone.id
 }
 
 export const api = {
@@ -323,52 +365,53 @@ async updateReportStatus(
 
 
   async startRide(
-  bicycleId: string,
-  startLocation?: RideCoordinates,
-): Promise<{ rideId: string; bicycleId: string }> {
-  if (USE_DEMO) {
-    throw new Error(
-      'Demo mode is not supported for starting real rides.',
-    )
-  }
+    bicycleId: string,
+    startLocation: RideCoordinates,
+  ): Promise<{ rideId: string; bicycleId: string }> {
+    if (USE_DEMO) {
+      throw new Error('Demo mode is not supported for starting real rides.')
+    }
 
-  const ride = await request<ApiRide>('/rides/start', {
-    method: 'POST',
-    body: JSON.stringify({
-      bicycle_id: bicycleId,
-      start_latitude: startLocation?.latitude ?? null,
-      start_longitude: startLocation?.longitude ?? null,
-    }),
-  })
-
-  return {
-    rideId: ride.id,
-    bicycleId: ride.bicycle_id,
-  }
-},
-
-  async endRide(
-  rideId: string,
-  endLocation?: RideCoordinates,
-): Promise<ApiRide> {
-  if (USE_DEMO) {
-    throw new Error(
-      'Demo mode is not supported for ending real rides.',
-    )
-  }
-
-  return request<ApiRide>(
-    `/rides/${encodeURIComponent(rideId)}/end`,
-    {
+    const startZoneId = await findParkingZone(startLocation)
+    const ride = await request<ApiRide>('/rides/start', {
       method: 'POST',
       body: JSON.stringify({
-        end_latitude: endLocation?.latitude ?? null,
-        end_longitude: endLocation?.longitude ?? null,
+        bicycle_id: bicycleId,
+        start_latitude: startLocation.latitude,
+        start_longitude: startLocation.longitude,
+        start_zone_id: startZoneId,
       }),
-    },
-  )
-},
-async recordRideLocation(
+    })
+
+    return { rideId: ride.id, bicycleId: ride.bicycle_id }
+  },
+
+  async endRide(
+    rideId: string,
+    endLocation: RideCoordinates,
+  ): Promise<ApiRide> {
+    if (USE_DEMO) {
+      throw new Error('Demo mode is not supported for ending real rides.')
+    }
+
+    const endZoneId = await findParkingZone(endLocation)
+    // Save the final point before closing the ride; completed rides reject location events.
+    await api.recordRideLocation(rideId, endLocation)
+
+    return request<ApiRide>(
+      `/rides/${encodeURIComponent(rideId)}/end`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          end_latitude: endLocation.latitude,
+          end_longitude: endLocation.longitude,
+          end_zone_id: endZoneId,
+        }),
+      },
+    )
+  },
+
+  async recordRideLocation(
   rideId: string,
   location: RideCoordinates,
 ): Promise<void> {
@@ -394,10 +437,10 @@ async recordRideLocation(
     bicycleId: string
     issue: string
     description: string
-  }): Promise<{ ok: boolean }> {
-    if (USE_DEMO) return { ok: true }
+  }): Promise<void> {
+    if (USE_DEMO) return
 
-    return request('/reports', {
+    await request<ApiReport>('/reports', {
       method: 'POST',
       body: JSON.stringify({
         bicycle_id: input.bicycleId,

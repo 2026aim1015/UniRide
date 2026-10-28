@@ -14,9 +14,15 @@ def main():
     try:
         zone = db.get(ParkingZone, ZONE_ID)
         if not zone:
-            zone = ParkingZone(id=ZONE_ID, name="Main Campus Parking", latitude=30.9760, longitude=76.4730, radius_meters=50, is_active=True)
+            zone = ParkingZone(id=ZONE_ID, name="Main Campus Parking", latitude=30.9716, longitude=76.4732, radius_meters=50, is_active=True)
             db.add(zone)
             db.flush()
+        else:
+            # Keep the development seed aligned with the IIT Ropar campus reference point.
+            zone.latitude = 30.9716
+            zone.longitude = 76.4732
+            zone.radius_meters = 50
+            zone.is_active = True
         for bike_id, qr, name in [
             (BIKE1_ID, "UNIRIDE-DEMO-001", "UniRide Bicycle 01"),
             (BIKE2_ID, "UNIRIDE-DEMO-002", "UniRide Bicycle 02"),
