@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Circle, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
-import type { LatLngExpression } from "leaflet";
+import { Circle, MapContainer, Marker, Popup, TileLayer, Tooltip, useMap } from "react-leaflet";
+import type { LatLngBoundsExpression, LatLngExpression } from "leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./InteractiveCampusMap.css";
@@ -37,6 +37,22 @@ type LocatedBicycle = ApiBicycle & {
 
 const CAMPUS_CENTER: LatLngExpression = [30.96556, 76.47059];
 
+// Approximate IIT Ropar campus viewing boundary (south-west and north-east).
+// Adjust these four values if you have the exact campus perimeter coordinates.
+const CAMPUS_SOUTH_WEST: [number, number] = [30.955, 76.455];
+const CAMPUS_NORTH_EAST: [number, number] = [30.978, 76.486];
+const CAMPUS_BOUNDS: LatLngBoundsExpression = [CAMPUS_SOUTH_WEST, CAMPUS_NORTH_EAST];
+
+function isInsideCampus(position: [number, number]) {
+  const [latitude, longitude] = position;
+  return (
+    latitude >= CAMPUS_SOUTH_WEST[0] &&
+    latitude <= CAMPUS_NORTH_EAST[0] &&
+    longitude >= CAMPUS_SOUTH_WEST[1] &&
+    longitude <= CAMPUS_NORTH_EAST[1]
+  );
+}
+
 const availableBikeIcon = L.divIcon({
   className: "uniride-bike-marker",
   html: '<div class="uniride-bike-pin available" aria-label="Available bicycle">🚲</div>',
@@ -51,13 +67,56 @@ const unavailableBikeIcon = L.divIcon({
   iconAnchor: [17, 17],
 });
 
-function FitMap({ position }: { position: [number, number] | null }) {
+function FitMap() {
   const map = useMap();
+
   useEffect(() => {
-    if (position) map.setView(position, 16);
-    else map.setView(CAMPUS_CENTER, 16);
-  }, [map, position]);
+    // Keep the map focused on IIT Ropar instead of following the student's GPS.
+    map.setMaxBounds(CAMPUS_BOUNDS);
+    map.fitBounds(CAMPUS_BOUNDS, { padding: [12, 12], maxZoom: 15 });
+  }, [map]);
+
   return null;
+}
+
+// A permanent control lets users return to the campus view after zooming or panning.
+function CampusMapControls() {
+  const map = useMap();
+
+  const resetCampusView = () => {
+    map.fitBounds(CAMPUS_BOUNDS, {
+      padding: [12, 12],
+      maxZoom: 15,
+      animate: true,
+      duration: 0.5,
+    });
+  };
+
+  return (
+    <div className="leaflet-top leaflet-right" style={{ pointerEvents: "none" }}>
+      <div className="leaflet-control" style={{ pointerEvents: "auto", marginTop: "10px", marginRight: "10px" }}>
+        <button
+          type="button"
+          onClick={resetCampusView}
+          aria-label="Return to IIT Ropar campus view"
+          title="Return to IIT Ropar campus view"
+          style={{
+            border: "1px solid #cbd5e1",
+            borderRadius: "6px",
+            background: "white",
+            color: "#1e293b",
+            padding: "9px 12px",
+            fontSize: "13px",
+            fontWeight: 600,
+            cursor: "pointer",
+            boxShadow: "0 1px 5px rgba(0,0,0,0.25)",
+          }}
+        >
+          Reset Campus View
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -148,8 +207,16 @@ export default function InteractiveCampusMap({ compact = false }: Props) {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setStudentPosition([position.coords.latitude, position.coords.longitude]);
-        setLocationMessage("Distances are measured from your current location.");
+        const currentPosition: [number, number] = [
+          position.coords.latitude,
+          position.coords.longitude,
+        ];
+        setStudentPosition(currentPosition);
+        setLocationMessage(
+          isInsideCampus(currentPosition)
+            ? "Distances are measured from your current location."
+            : "Your current location is outside the campus map area. The map remains focused on IIT Ropar."
+        );
       },
       () => {
         setLocationMessage("Allow location access to see distances from you.");
@@ -218,20 +285,39 @@ export default function InteractiveCampusMap({ compact = false }: Props) {
       </div>
 
       <div className="leaflet-map-shell">
-        <MapContainer center={CAMPUS_CENTER} zoom={16} minZoom={13} maxZoom={20} scrollWheelZoom className={`leaflet-map-canvas ${compact ? "leaflet-map-compact" : ""}`}>
+        <MapContainer
+          center={CAMPUS_CENTER}
+          zoom={15}
+          minZoom={14}
+          maxZoom={20}
+          maxBounds={CAMPUS_BOUNDS}
+          maxBoundsViscosity={1.0}
+          scrollWheelZoom
+          className={`leaflet-map-canvas ${compact ? "leaflet-map-compact" : ""}`}
+        >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <FitMap position={studentPosition} />
+          <FitMap />
+          <CampusMapControls />
 
           {zones.map((zone) => (
             <Circle
               key={zone.id}
               center={[zone.latitude, zone.longitude]}
               radius={zone.radius_meters}
-              pathOptions={{ color: "#16834a", fillColor: "#22c55e", fillOpacity: 0.14, weight: 2 }}
+              pathOptions={{
+                color: "#15803d",
+                fillColor: "#22c55e",
+                fillOpacity: 0.25,
+                weight: 3,
+                dashArray: "6 4",
+              }}
             >
+              <Tooltip direction="top" sticky className="parking-zone-tooltip">
+                {zone.name} · Parking area
+              </Tooltip>
               <Popup>
                 <strong>{zone.name}</strong><br />
                 Radius: {zone.radius_meters} m<br />
@@ -252,7 +338,7 @@ export default function InteractiveCampusMap({ compact = false }: Props) {
             </Marker>
           ))}
 
-          {studentPosition && (
+          {studentPosition && isInsideCampus(studentPosition) && (
             <Marker position={studentPosition}>
               <Popup><strong>Your current location</strong></Popup>
             </Marker>
