@@ -21,7 +21,7 @@ def main():
             # Keep the development seed aligned with the IIT Ropar campus reference point.
             zone.latitude = 30.9716
             zone.longitude = 76.4732
-            zone.radius_meters = 50
+            zone.radius_meters = 30
             zone.is_active = True
         for bike_id, qr, name in [
             (BIKE1_ID, "UNIRIDE-DEMO-001", "UniRide Bicycle 01"),

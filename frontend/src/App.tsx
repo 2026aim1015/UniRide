@@ -142,7 +142,7 @@ useEffect(() => {
       return
     }
 
-    let lastSentAt = 0
+    let lastSentAt = Date.now()
     let requestInProgress = false
 
     const watchId = navigator.geolocation.watchPosition(

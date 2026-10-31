@@ -167,33 +167,54 @@ function convertRide(item: ApiRide): Ride {
         : 'Active',
   }
 }
-const calculateRideDistance = (points: ApiLocationEvent[]): string => {
-  if (points.length < 2) {
-    return 'GPS data unavailable'
+const calculateRideDistance = (
+  points: ApiLocationEvent[],
+  ride: ApiRide,
+): string => {
+  let coordinates: RideCoordinates[]
+
+  // First preference: actual GPS tracking points.
+  if (points.length >= 2) {
+    coordinates = [...points]
+      .sort(
+        (a, b) =>
+          new Date(a.recorded_at).getTime() -
+          new Date(b.recorded_at).getTime()
+      )
+      .map(point => ({
+        latitude: point.latitude,
+        longitude: point.longitude,
+      }))
+  } else {
+    // Fallback: ride start and end coordinates.
+    if (
+      ride.start_latitude === null ||
+      ride.start_longitude === null ||
+      ride.end_latitude === null ||
+      ride.end_longitude === null
+    ) {
+      return 'GPS data unavailable'
+    }
+
+    coordinates = [
+      {
+        latitude: ride.start_latitude,
+        longitude: ride.start_longitude,
+      },
+      {
+        latitude: ride.end_latitude,
+        longitude: ride.end_longitude,
+      },
+    ]
   }
 
-  const toRadians = (degrees: number) => (degrees * Math.PI) / 180
-  const earthRadiusMeters = 6371000
   let totalMeters = 0
 
-  for (let i = 1; i < points.length; i++) {
-    const previous = points[i - 1]
-    const current = points[i]
-
-    const lat1 = toRadians(previous.latitude)
-    const lat2 = toRadians(current.latitude)
-    const deltaLat = toRadians(current.latitude - previous.latitude)
-    const deltaLon = toRadians(current.longitude - previous.longitude)
-
-    const a =
-      Math.sin(deltaLat / 2) ** 2 +
-      Math.cos(lat1) *
-        Math.cos(lat2) *
-        Math.sin(deltaLon / 2) ** 2
-
-    const safeA = Math.min(1, Math.max(0, a))
-    const c = 2 * Math.atan2(Math.sqrt(safeA), Math.sqrt(1 - safeA))
-    totalMeters += earthRadiusMeters * c
+  for (let i = 1; i < coordinates.length; i++) {
+    totalMeters += distanceBetweenMeters(
+      coordinates[i - 1],
+      coordinates[i],
+    )
   }
 
   if (totalMeters < 1000) {
@@ -310,18 +331,27 @@ export const api = {
     return convertBicycle(item)
   },
 
-  async getRides(): Promise<Ride[]> {
+ async getRides(): Promise<Ride[]> {
   if (USE_DEMO) return demoRides
 
   const items = await request<ApiRide[]>('/rides/me')
 
   return Promise.all(
     items.map(async (item) => {
-      const points = await api.getRideLocations(item.id)
+      let points: ApiLocationEvent[] = []
+
+      try {
+        points = await api.getRideLocations(item.id)
+      } catch (error) {
+        console.error(
+          `Could not load GPS points for ride ${item.id}:`,
+          error,
+        )
+      }
 
       return {
         ...convertRide(item),
-        distance: calculateRideDistance(points),
+        distance: calculateRideDistance(points, item),
       }
     }),
   )
@@ -438,8 +468,9 @@ async updateReportStatus(
     issue: string
     description: string
   }): Promise<void> {
-    if (USE_DEMO) return
-
+    if (USE_DEMO) {
+  throw new Error('Report submission requires real backend mode.')
+   }
     await request<ApiReport>('/reports', {
       method: 'POST',
       body: JSON.stringify({
