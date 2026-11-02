@@ -1,4 +1,4 @@
-import { Bike, CircleHelp, Clock3, LayoutDashboard, LogOut, MapPin, ShieldCheck, UserRound, Wrench, X } from 'lucide-react'
+import { Bike, CircleHelp, Clock3, LayoutDashboard, LogOut, MapPin, UserRound, Wrench, X } from 'lucide-react'
 import type { AppRole } from '../types'
 
 export type Page =
@@ -63,12 +63,6 @@ export function Sidebar({ role, page, onNavigate, onRoleChange, canSwitchRole, u
         })}
       </nav>
       <div className="sidebar-bottom">
-        <div className="eco-card">
-          <div className="eco-icon"><ShieldCheck size={18} /></div>
-          <strong>A lighter way around campus.</strong>
-          <p>Small rides. Greener days.</p>
-          <div className="eco-spark">✳</div>
-        </div>
         {canSwitchRole && <button className="nav-item muted-nav" onClick={() => onRoleChange(role === 'student' ? 'admin' : 'student')}>
           <UserRound size={18} /><span>Preview {role === 'student' ? 'admin' : 'student'} view</span>
         </button>}

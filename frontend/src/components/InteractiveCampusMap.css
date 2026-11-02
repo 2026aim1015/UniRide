@@ -20,7 +20,7 @@
 
 .map-eyebrow {
   margin: 0 0 8px;
-  color: #16834a;
+  color: #315C85;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 1.4px;
@@ -41,10 +41,10 @@
 
 .demo-label {
   padding: 7px 10px;
-  border: 1px solid #bbf7d0;
+  border: 1px solid #C9DDED;
   border-radius: 999px;
-  background: #f0fdf4;
-  color: #166534;
+  background: #EAF1F8;
+  color: #315C85;
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
@@ -107,9 +107,9 @@
 }
 
 .route-controls select:focus {
-  outline: 2px solid #86efac;
+  outline: 2px solid #9FC7E4;
   outline-offset: 1px;
-  border-color: #16834a;
+  border-color: #315C85;
 }
 
 .route-button {
@@ -117,7 +117,7 @@
   padding: 0 17px;
   border: 0;
   border-radius: 9px;
-  background: #16834a;
+  background: #315C85;
   color: white;
   font-weight: 700;
   cursor: pointer;
@@ -125,7 +125,7 @@
 }
 
 .route-button:hover {
-  background: #116638;
+  background: #24466F;
 }
 
 .route-button:disabled {
@@ -139,10 +139,10 @@
   gap: 12px;
   margin-bottom: 14px;
   padding: 12px 14px;
-  border: 1px solid #bbf7d0;
+  border: 1px solid #C9DDED;
   border-radius: 10px;
-  background: #f0fdf4;
-  color: #166534;
+  background: #EAF1F8;
+  color: #315C85;
   font-size: 13px;
 }
 
@@ -191,7 +191,7 @@
   width: 17px;
   height: 3px;
   border-radius: 2px;
-  background: #16834a;
+  background: #315C85;
 }
 
 .leaflet-map-shell {
@@ -271,7 +271,7 @@
 .bicycle-pin {
   width: 28px;
   height: 28px;
-  background-color: #16a34a;
+  background-color: #315C85;
   border: 2px solid #ffffff;
   border-radius: 50% 50% 50% 8px;
   transform: rotate(-45deg);
@@ -338,7 +338,7 @@
 }
 
 .uniride-bike-pin.available {
-  background: #16834a;
+  background: #315C85;
 }
 
 .uniride-bike-pin.unavailable {
@@ -350,9 +350,9 @@
   display: inline-block;
   width: 12px;
   height: 12px;
-  border: 2px solid #16834a;
+  border: 2px solid #315C85;
   border-radius: 50%;
-  background: rgba(34, 197, 94, 0.18);
+  background: rgba(49, 92, 133, 0.16);
 }
 
 @media (max-width: 700px) {
@@ -369,10 +369,10 @@
 /* Labels shown when the user hovers over an active parking-zone circle. */
 .leaflet-tooltip.parking-zone-tooltip {
   padding: 5px 8px;
-  border: 1px solid #15803d;
+  border: 1px solid #315C85;
   border-radius: 6px;
-  background: #f0fdf4;
-  color: #166534;
+  background: #EAF1F8;
+  color: #315C85;
   font-size: 11px;
   font-weight: 700;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
