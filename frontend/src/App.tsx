@@ -16,6 +16,7 @@ import type { AppRole, Bicycle, BicycleStatus, ProblemReport, Ride, UserProfile 
 import ResetPasswordPage from './components/ResetPasswordPage'
 import InteractiveCampusMap from "./components/InteractiveCampusMap";
 import QRScanner from "./components/QRScanner";
+import './styles/HomepageBikes.css'
 
 
 const getCurrentLocation = (): Promise<{
@@ -142,7 +143,7 @@ useEffect(() => {
       return
     }
 
-    let lastSentAt = 0
+    let lastSentAt = Date.now()
     let requestInProgress = false
 
     const watchId = navigator.geolocation.watchPosition(
@@ -185,6 +186,7 @@ useEffect(() => {
     return matchesSearch && (statusFilter === 'All' || b.status === statusFilter)
   }), [bicycles, search, statusFilter])
   const availableCount = bicycles.filter(b => b.status === 'Available').length
+  const homepageAvailableBikes = bicycles.filter(b => b.status === 'Available').slice(0, 3)
   const todayLabel = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const title = page === 'overview' && role === 'student' ? { ...pageMeta.overview, title: `Good day, ${firstName}` } : pageMeta[page]
     const bikeLabel = (bicycleId: string) =>
@@ -300,8 +302,44 @@ const submitReport = async (e: FormEvent) => {
   
   const renderOverview = () => role === 'student' ? <div className="content-stack">
     <section className="welcome-banner">
-      <div className="welcome-copy"><div className="eyebrow"><Sparkles size={14} /> CAMPUS, AT YOUR PACE</div><h2>Good rides.<br /><span>Good for the planet.</span></h2><p>Find a bicycle, skip the long walk, and make your next campus hop a little greener.</p><div className="welcome-actions"><button className="button button-primary button-lg" onClick={() => navigate('bicycles')}>Find a bicycle <ArrowRight size={17} /></button><button className="button button-ghost button-lg" onClick={() => navigate('history')}>My rides</button></div><div className="welcome-trust"><span><ShieldCheck size={15} /> IIT Ropar students</span><span><Leaf size={15} /> A greener campus</span></div></div>
-      <div className="welcome-art"><div className="sun-orb" /><div className="art-hill hill-back" /><div className="art-hill hill-front" /><div className="art-building building-one" /><div className="art-building building-two" /><div className="art-path" /><div className="art-bike"><Bike size={146} strokeWidth={1.15} /></div><div className="floating-card"><div className="floating-icon"><MapPin size={17} /></div><div><strong>Campus is close</strong><span>Find a bicycle near you</span></div></div><div className="art-sticker">RIDE<br />HAPPY <span>✳</span></div></div>
+      <div className="welcome-copy"><div className="eyebrow"><Sparkles size={14} /> CAMPUS, AT YOUR PACE</div><h2>Good rides.<br /><span>Good for the planet.</span></h2><p>Find a bicycle, skip the long walk.</p><div className="welcome-actions"><button className="button button-primary button-lg" onClick={() => navigate('bicycles')}>Find a bicycle <ArrowRight size={17} /></button><button className="button button-ghost button-lg" onClick={() => navigate('history')}>My rides</button></div><div className="welcome-trust"><span><ShieldCheck size={15} /> IIT Ropar students</span></div></div>
+      <div className="welcome-bike-panel">
+        <div className="welcome-bike-heading">
+          <div>
+            <span className="welcome-bike-eyebrow">READY TO RIDE</span>
+            <h3>Available bicycles</h3>
+            <p>Choose a bicycle near your campus location.</p>
+          </div>
+          <span className="welcome-bike-count">{availableCount} available</span>
+        </div>
+        {homepageAvailableBikes.length > 0 ? (
+          <div className="welcome-bike-list">
+            {homepageAvailableBikes.map(bike => (
+              <button className="welcome-bike-item" key={bike.id} onClick={() => setSelectedBike(bike)}>
+                <span className="welcome-bike-icon" style={{ backgroundColor: bike.color || '#DCEAF6' }}>
+                  <Bike size={27} strokeWidth={1.7} />
+                </span>
+                <span className="welcome-bike-details">
+                  <strong>{bike.id} <small>{bike.label}</small></strong>
+                  <span><MapPin size={12} /> {bike.location}</span>
+                  <span className="welcome-bike-distance">{bike.distance} walk</span>
+                </span>
+                <span className="welcome-bike-status"><i /> Available</span>
+                <ChevronRight size={17} className="welcome-bike-chevron" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="welcome-bike-empty">
+            <Bike size={34} />
+            <strong>No bicycles available right now</strong>
+            <span>Please check again in a little while.</span>
+          </div>
+        )}
+        <button className="welcome-bike-view-all" onClick={() => navigate('bicycles')}>
+          View all bicycles <ArrowRight size={15} />
+        </button>
+      </div>
     </section>
     <div className="section-heading"><div><h2>Your campus at a glance</h2><p>Ready when you are.</p></div><button className="text-button" onClick={() => navigate('bicycles')}>See all bicycles <ArrowUpRight size={16} /></button></div>
     <div className="stats-grid"><StatCard label="Bicycles available" value={String(availableCount)} note="Ready for a ride" icon={Bike} /><StatCard label="Your rides" value={String(rides.length)} note="Rides recorded" icon={Compass} tone="blue" /><StatCard label="Completed rides" value={String(rides.filter(r => r.status === 'Completed').length)} note="Finished trips" icon={Check} tone="yellow" /><StatCard label="Rides in progress" value={String(rides.filter(r => r.status === 'Active').length)} note="Right now" icon={Navigation} tone="sage" /></div>
@@ -317,7 +355,7 @@ const submitReport = async (e: FormEvent) => {
   </div>
 
   const renderBicycles = () => <div className="content-stack">
-    <section className="page-intro-card"><div><div className="eyebrow"><Compass size={14} /> FIND YOUR NEXT RIDE</div><h2>Pick your <span>campus companion.</span></h2><p>Search by bicycle ID, landmark, or location. Availability is shown for demo data.</p></div><div className="intro-illustration"><Bike size={90} strokeWidth={1.1} /></div></section>
+    <section className="page-intro-card"><div><div className="eyebrow"><Compass size={14} /> FIND YOUR NEXT RIDE</div><h2>Pick your <span>campus companion.</span></h2></div><div className="intro-illustration"><Bike size={90} strokeWidth={1.1} /></div></section>
     <div className="qr-unlock-section"> <button className="button button-primary" onClick={() => setShowQRScanner(true)}> <QrCode size={18} />Scan QR to Unlock</button>{showQRScanner && (<QRScanner onScan={(decodedText) => {setShowQRScanner(false); const scannedQrCodeId = decodedText.trim();const bike = bicycles.find((b) =>b.qrCodeId?.trim().toLowerCase() ===  scannedQrCodeId.toLowerCase() );if (!bike) {setToast('No bicycle found for this QR code.');return;}setSelectedBike(bike);}}onClose={() => setShowQRScanner(false)}/>)}</div>
     <div className="bicycle-toolbar"><label className="search-field"><Search size={17} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Try “Library” or “B-023”..." /></label><div className="filter-pills">{(['All', 'Available', 'In use', 'Maintenance'] as const).map(s => <button key={s} className={`filter-pill ${statusFilter === s ? 'filter-selected' : ''}`} onClick={() => setStatusFilter(s)}>{s}</button>)}</div></div>
     <div className="results-summary"><span><strong>{filteredBikes.length}</strong> bicycles found</span><span><i className="legend-dot green-dot" /> Availability can change</span></div>
