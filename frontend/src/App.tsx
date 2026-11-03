@@ -16,7 +16,7 @@ import type { AppRole, Bicycle, BicycleStatus, ProblemReport, Ride, UserProfile 
 import ResetPasswordPage from './components/ResetPasswordPage'
 import InteractiveCampusMap from "./components/InteractiveCampusMap";
 import QRScanner from "./components/QRScanner";
-import './styles/HomepageBikes.css'
+import './styles/Homepagebikes.css'
 
 
 const getCurrentLocation = (): Promise<{
