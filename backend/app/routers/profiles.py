@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.auth import current_profile
+from app.auth import current_profile, require_admin
 from app.database import get_db
 from app.models import Profile
 from app.schemas import ProfileOut, ProfileUpdate

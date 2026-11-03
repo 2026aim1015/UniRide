@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { Sidebar, type Page } from './components/Sidebar'
 import ZonesPage from './components/admin/ZonesPage'
+   import MaintenancePage from './components/admin/MaintenancePage'
+   import RidesPage from './components/admin/RidesPage'
 import { Topbar } from './components/Topbar'
 import { BicycleCard } from './components/BicycleCard'
 import { api } from './services/api'
@@ -63,6 +65,8 @@ const pageMeta: Record<Page, { title: string; subtitle: string }> = {
   adminBicycles: { title: 'Bicycle management', subtitle: 'Keep the campus fleet ready to roll.' },
   adminReports: { title: 'Reported issues', subtitle: 'A little maintenance goes a long way.' },
   adminZones: { title: 'Parking zones', subtitle: 'Manage campus parking and ride return zones.' },
+  adminMaintenance: { title: 'Maintenance', subtitle: 'Repair bicycles and bring them back into service.' },
+  adminRides: { title: 'Ride records', subtitle: 'See every ride taken on campus.' },
 }
 
 function Modal({ children, onClose }: { children: ReactNode; onClose: () => void }) {
@@ -392,6 +396,8 @@ const submitReport = async (e: FormEvent) => {
         {page === 'adminBicycles' && renderAdminBicycles()}
         {page === 'adminReports' && renderAdminReports()}
         {page === 'adminZones' && role === 'admin' && <ZonesPage />}
+        {page === 'adminMaintenance' && role === 'admin' && <MaintenancePage />}
+        {page === 'adminRides' && role === 'admin' && <RidesPage />}
         <footer className="app-footer"><div className="footer-brand"><Bike size={18} /> UniRide<span>.</span></div><span>Made for a greener campus · IIT Ropar</span>{import.meta.env.VITE_USE_DEMO_DATA === 'true' && <span className="footer-demo"><i /> DEMO DATA</span>}</footer>
       </div>
     </main>

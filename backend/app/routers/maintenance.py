@@ -33,13 +33,23 @@ def update_maintenance(record_id: uuid.UUID, payload: MaintenanceUpdate, db: Ses
     if item is None:
         raise HTTPException(status_code=404, detail="Maintenance record not found")
     item.status = payload.status
-    item.assigned_to = payload.assigned_to
+    if "assigned_to" in payload.model_fields_set:  # only change the assignee if the client sent it
+        item.assigned_to = payload.assigned_to
     if payload.status == "in_progress" and item.started_at is None:
         item.started_at = datetime.now(timezone.utc)
     if payload.status == "completed":
         item.completed_at = datetime.now(timezone.utc)
+    if payload.status in ("completed", "cancelled"):
+        # Give the bicycle back, unless another repair for it is still open.
+        other_open = db.scalar(
+            select(MaintenanceRecord.id).where(
+                MaintenanceRecord.bicycle_id == item.bicycle_id,
+                MaintenanceRecord.id != item.id,
+                MaintenanceRecord.status.in_(("open", "in_progress")),
+            ).limit(1)
+        )
         bicycle = db.get(Bicycle, item.bicycle_id)
-        if bicycle and bicycle.status == "maintenance":
+        if bicycle and bicycle.status == "maintenance" and other_open is None:
             bicycle.status = "available"
     db.add(AuditLog(actor_id=profile.id, action="maintenance.updated", entity_type="maintenance_record", entity_id=item.id, details={"status": payload.status}))
     db.commit()

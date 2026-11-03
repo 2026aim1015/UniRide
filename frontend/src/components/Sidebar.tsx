@@ -1,4 +1,4 @@
-import { Bike, CircleHelp, Clock3, LayoutDashboard, LogOut, MapPin, UserRound, Wrench, X } from 'lucide-react'
+   import { Bike, CircleHelp, Clock3, Hammer, LayoutDashboard, LogOut, MapPin, UserRound, Wrench, X } from 'lucide-react'
 import type { AppRole } from '../types'
 
 export type Page =
@@ -10,6 +10,8 @@ export type Page =
   | 'adminBicycles'
   | 'adminReports'
   | 'adminZones'
+  | 'adminMaintenance'
+  | 'adminRides'
 
 interface Props {
   role: AppRole
@@ -40,7 +42,8 @@ export function Sidebar({ role, page, onNavigate, onRoleChange, canSwitchRole, u
     { id: 'adminBicycles', label: 'Bicycle management', icon: Bike },
     { id: 'adminZones', label: 'Parking zones', icon: MapPin },
     { id: 'adminReports', label: 'Reported issues', icon: Wrench },
-    { id: 'history', label: 'Ride records', icon: Clock3 },
+       { id: 'adminMaintenance', label: 'Maintenance', icon: Hammer },
+       { id: 'adminRides', label: 'Ride records', icon: Clock3 },
    
   ]
   const items = role === 'student' ? studentItems : adminItems
