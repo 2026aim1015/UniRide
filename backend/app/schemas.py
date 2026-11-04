@@ -41,6 +41,7 @@ class ZoneOut(ORMModel):
     is_active: bool
 
 class BicycleCreate(BaseModel):
+    # The backend assigns a permanent ID when the admin leaves this blank.
     qr_code_id: str | None = Field(default=None, min_length=1, max_length=200)
     display_name: str = Field(min_length=1, max_length=160)
     status: Literal["available", "reserved", "in_use", "maintenance", "offline"] = "available"

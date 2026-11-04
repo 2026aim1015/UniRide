@@ -5,8 +5,8 @@ import { supabase } from '../lib/supabase'
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'
 
-const USE_DEMO =
-  (import.meta.env.VITE_USE_DEMO_DATA ?? 'false') === 'true'
+// Live backend is the source of truth. Demo fixtures must never replace campus bicycles.
+const USE_DEMO = false
 
 interface ApiBicycle {
   id: string
@@ -293,7 +293,8 @@ export const api = {
     if (USE_DEMO) return demoBicycles
 
     const items = await request<ApiBicycle[]>('/bicycles')
-    return items.map(convertBicycle)
+    // Offline bicycles are deactivated: keep them in admin management, not the student catalogue.
+    return items.filter(item => item.status !== 'offline').map(convertBicycle)
   },
 
   async getBicycle(bicycleId: string): Promise<Bicycle> {

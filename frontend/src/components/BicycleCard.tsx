@@ -7,7 +7,7 @@ export function BicycleCard({ bicycle, onSelect, onRide }: { bicycle: Bicycle; o
     <div className="bike-visual" style={{ background: bicycle.color }}>
       <div className="bike-card-top"><span className={`status-chip ${bicycle.status.toLowerCase().replace(' ', '-')}`}><i />{bicycle.status}</span><button className="mini-arrow" onClick={() => onSelect(bicycle)} aria-label={`View ${bicycle.id}`}><ArrowUpRight size={16} /></button></div>
       <div className="bike-art"><Bike size={90} strokeWidth={1.15} /></div>
-      <div className="bike-id">{bicycle.id}</div>
+      <div className="bike-id">{bicycle.qrCodeId || bicycle.id}</div>
     </div>
     <div className="bike-card-body">
       <div><h3>{bicycle.label}</h3><p className="muted-text">Ready for your next campus hop</p></div>

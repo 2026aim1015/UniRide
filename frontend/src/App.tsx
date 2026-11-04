@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import {
   ArrowDownRight, ArrowRight, ArrowUpRight, Bike, CalendarDays, Check, ChevronRight, CircleHelp,
-  Clock3, Compass, Leaf, MapPin, Navigation, Plus, Search, ShieldCheck, Sparkles,
+  Clock3, Compass, Leaf, MapPin, Navigation, Search, ShieldCheck, Sparkles,
   TrendingUp, Wrench, X, Zap, QrCode
 } from 'lucide-react'
 import { Sidebar, type Page } from './components/Sidebar'
@@ -107,25 +107,32 @@ function UniRideDashboard({ profile, onSignOut }: { profile: UserProfile; onSign
 useEffect(() => {
   let cancelled = false
   const loadData = async () => {
-    try {
-      const [loadedBicycles, loadedRides, loadedReports] =
-        await Promise.all([
-          api.getBicycles(),
-          api.getRides(),
-          profile.role === 'admin' ? api.getAllReports() : api.getReports(),
-        ])
-      if (cancelled) return
-      setBicycles(loadedBicycles)
-      setRides(loadedRides)
-      setReports(loadedReports)
-      if (loadedBicycles.length > 0) setIssueBike(loadedBicycles[0].id)
-    } catch (error) {
-      if (cancelled) return
-      setToast(
-        error instanceof Error
-          ? error.message
-          : 'Could not load data from the server.',
-      )
+    const results = await Promise.allSettled([
+      api.getBicycles(),
+      api.getRides(),
+      profile.role === 'admin' ? api.getAllReports() : api.getReports(),
+    ])
+    if (cancelled) return
+
+    const [bicycleResult, rideResult, reportResult] = results
+    // Load each section independently: a reports or rides failure must not
+    // prevent the student bicycle catalogue from rendering.
+    if (bicycleResult.status === 'fulfilled') {
+      setBicycles(bicycleResult.value)
+      if (bicycleResult.value.length > 0) setIssueBike(bicycleResult.value[0].id)
+    } else {
+      setToast(bicycleResult.reason instanceof Error
+        ? bicycleResult.reason.message
+        : 'Could not load bicycles from the server.')
+    }
+
+    if (rideResult.status === 'fulfilled') setRides(rideResult.value)
+    if (reportResult.status === 'fulfilled') setReports(reportResult.value)
+
+    const secondaryErrors = [rideResult, reportResult]
+      .filter(result => result.status === 'rejected')
+    if (secondaryErrors.length > 0 && bicycleResult.status === 'fulfilled') {
+      console.warn('Some UniRide dashboard data could not be loaded:', secondaryErrors)
     }
   }
 
@@ -311,43 +318,45 @@ const submitReport = async (e: FormEvent) => {
       <div className="welcome-bike-panel">
         <div className="welcome-bike-heading">
           <div>
-            <h3>Nearby bicycles</h3>
-            <p>Choose your ride</p>
+            <span className="welcome-bike-eyebrow">READY TO RIDE</span>
+            <h3>Available bicycles</h3>
+            <p>Choose a bicycle near your campus location.</p>
           </div>
-          
+          <span className="welcome-bike-count">{availableCount} available</span>
         </div>
         {homepageAvailableBikes.length > 0 ? (
           <div className="welcome-bike-list">
-            {homepageAvailableBikes.map((bike, index) => (
+            {homepageAvailableBikes.map(bike => (
               <button className="welcome-bike-item" key={bike.id} onClick={() => setSelectedBike(bike)}>
                 <span className="welcome-bike-icon" style={{ backgroundColor: bike.color || '#DCEAF6' }}>
-                  <Bike size={23} strokeWidth={1.7} />
+                  <Bike size={27} strokeWidth={1.7} />
                 </span>
                 <span className="welcome-bike-details">
-                  <strong>{bike.label || `Bicycle ${index + 1}`}</strong>
-                  <span><MapPin size={11} /> {bike.location}</span>
+                  <strong>{bike.id} <small>{bike.label}</small></strong>
+                  <span><MapPin size={12} /> {bike.location}</span>
+                  <span className="welcome-bike-distance">{bike.distance} walk</span>
                 </span>
                 <span className="welcome-bike-status"><i /> Available</span>
-                <ChevronRight size={15} className="welcome-bike-chevron" />
+                <ChevronRight size={17} className="welcome-bike-chevron" />
               </button>
             ))}
           </div>
         ) : (
           <div className="welcome-bike-empty">
-            <Bike size={30} />
-            <strong>No bicycles available</strong>
-            <span>Please check again later.</span>
+            <Bike size={34} />
+            <strong>No bicycles available right now</strong>
+            <span>Please check again in a little while.</span>
           </div>
         )}
         <button className="welcome-bike-view-all" onClick={() => navigate('bicycles')}>
-          View all bicycles <ArrowRight size={14} />
+          View all bicycles <ArrowRight size={15} />
         </button>
       </div>
     </section>
     <div className="section-heading"><div><h2>Your campus at a glance</h2><p>Ready when you are.</p></div><button className="text-button" onClick={() => navigate('bicycles')}>See all bicycles <ArrowUpRight size={16} /></button></div>
     <div className="stats-grid"><StatCard label="Bicycles available" value={String(availableCount)} note="Ready for a ride" icon={Bike} /><StatCard label="Your rides" value={String(rides.length)} note="Rides recorded" icon={Compass} tone="blue" /><StatCard label="Completed rides" value={String(rides.filter(r => r.status === 'Completed').length)} note="Finished trips" icon={Check} tone="yellow" /><StatCard label="Rides in progress" value={String(rides.filter(r => r.status === 'Active').length)} note="Right now" icon={Navigation} tone="sage" /></div>
     <div className="two-column-grid">
-      
+      <section className="panel nearby-panel"><div className="panel-heading"><div><h3>Nearby bicycles</h3><p>Pick one and get moving.</p></div><button className="round-arrow" onClick={() => navigate('bicycles')}><ArrowUpRight size={18} /></button></div><div className="nearby-list">{bicycles.slice(0, 3).map(b => <button className="nearby-row" key={b.id} onClick={() => setSelectedBike(b)}><div className="tiny-bike" style={{ background: b.color }}><Bike size={27} /></div><div className="nearby-info"><strong>{b.id} <span>{b.label}</span></strong><small><MapPin size={12} /> {b.location} · {b.distance}</small></div><span className={`status-chip ${b.status.toLowerCase().replace(' ', '-')}`}><i />{b.status}</span><ChevronRight size={16} className="row-chevron" /></button>)}</div><button className="button button-outline full-width" onClick={() => navigate('bicycles')}>Explore all bicycles <ArrowRight size={16} /></button></section>
       <section className="panel map-panel"><div className="panel-heading"><div><h3>Around campus</h3><p>Explore nearby spots</p></div><span className="map-live-pill"><span className="online-dot" /> DEMO MAP</span></div><CampusMap compact /><div className="map-footer"><span><i className="legend-dot green-dot" /> Available</span><span><i className="legend-dot gray-dot" /> In use</span><button className="text-button" onClick={() => navigate('bicycles')}>Open map <ArrowRight size={14} /></button></div></section>
     </div>
     <section className="soft-callout"><div className="callout-icon"><Leaf size={22} /></div><div><strong>Every short ride makes a difference.</strong><p>Choose a bicycle for your next trip and help keep campus a little cleaner.</p></div><div className="callout-decoration">✳</div></section>
@@ -377,14 +386,13 @@ const submitReport = async (e: FormEvent) => {
   </div>
   const renderReport = () => <div className="content-stack report-layout"><section className="report-intro"><div className="report-icon"><CircleHelp size={27} /></div><div className="eyebrow">HELP KEEP UniRide SAFE</div><h2>Spotted something?<br /><span>Tell us about it.</span></h2><p>Flat tyre, loose seat, or a bicycle that needs a little care? Send a report and the campus team can take it from there.</p><div className="report-promise"><Check size={16} /> Reports are reviewed by the UniRide team</div><div className="report-doodle"><Bike size={115} strokeWidth={1.05} /></div></section><section className="panel report-form-panel">{submitted ? <div className="success-state"><div className="success-check"><Check size={30} /></div><h2>Thanks for looking out.</h2><p>Your report has been submitted to the UniRide team.</p><button className="button button-primary" onClick={() => { setSubmitted(false); setPage('overview') }}>Back to overview</button><button className="text-button" onClick={() => setSubmitted(false)}>Submit another report</button></div> : <form onSubmit={submitReport}><div className="form-heading"><h3>Report a bicycle problem</h3><p>Tell us what happened and where.</p></div><label className="field-label">Bicycle ID<select value={issueBike} onChange={e => setIssueBike(e.target.value)}>{bicycles.map(b => <option key={b.id} value={b.id}>{b.id} · {b.location}</option>)}</select></label><label className="field-label">What’s the issue?<select value={issue} onChange={e => setIssue(e.target.value)}><option>Damaged bicycle</option><option>Flat tyre</option><option>Brake issue</option><option>Loose seat or handle</option><option>QR code not working</option><option>Parking zone issue</option><option>Other</option></select></label><label className="field-label"> Description<span className="optional-text">Required</span><textarea rows={4} value={description} onChange={e => setDescription(e.target.value)} placeholder="Add a few details to help us understand the problem..." required/></label><div className="form-note"><ShieldCheck size={16} /> Your report will be sent to the UniRide team.</div><button className="button button-primary button-lg full-width" type="submit">Send report <ArrowRight size={17} /></button></form>}</section></div>
 
-  const renderAdminBicycles = () => <div className="content-stack"><section className="admin-welcome compact-admin"><div><div className="eyebrow"><Bike size={14} /> FLEET MANAGEMENT</div><h2>Every bicycle,<br /><span>in good hands.</span></h2><p>Monitor status and keep the campus fleet moving.</p></div><div className="admin-welcome-mark"><Bike size={80} strokeWidth={1.1} /><span>FLEET / {bicycles.length} UNITS</span></div></section><div className="stats-grid"><StatCard label="Total bicycles" value={String(bicycles.length)} note="Across campus" icon={Bike} /><StatCard label="Available" value={String(availableCount)} note="Ready to ride" icon={Check} tone="sage" /><StatCard label="In use" value={String(bicycles.filter(b => b.status === 'In use').length)} note="Currently out" icon={Navigation} tone="blue" /><StatCard label="Maintenance" value={String(bicycles.filter(b => b.status === 'Maintenance').length)} note="Needs attention" icon={Zap} tone="yellow" /></div><section className="panel history-panel"><div className="panel-heading"><div><h3>Campus bicycle fleet</h3><p>{bicycles.length} bicycles in the fleet</p></div><button className="button button-primary" onClick={() => { const id = `B-${String(Math.floor(Math.random()*800)+200)}`; setBicycles(old => [{ id, label:'New Campus Ride', location:'Central Library', distance:'2 min walk', status:'Available', lastServiced:'Not serviced yet', color:'#e0f1e8' }, ...old]); setToast(`${id} added to demo fleet.`) }}><Plus size={16} /> Add bicycle</button></div><div className="table-wrap"><table><thead><tr><th>Bicycle</th><th>Location</th><th>Status</th><th>Last serviced</th><th>Action</th></tr></thead><tbody>{bicycles.map(b => <tr key={b.id}><td><div className="bike-table-cell"><div className="tiny-bike"><Bike size={22} /></div><div><div className="table-primary">{b.id}</div><div className="table-secondary">{b.label}</div></div></div></td><td>{b.location}</td><td><span className={`status-chip ${b.status.toLowerCase().replace(' ', '-')}`}><i />{b.status}</span></td><td>{b.lastServiced}</td><td><button className="small-action" onClick={() => { setSelectedBike(b); }}>View details <ChevronRight size={14} /></button></td></tr>)}</tbody></table></div></section></div>
 
   const renderAdminReports = () => <div className="content-stack"><section className="page-intro-card report-admin-intro"><div><div className="eyebrow"><WrenchIcon /> FLEET CARE</div><h2>Fix the little things.<br /><span>Keep rides rolling.</span></h2><p>Review reported issues and track the next action.</p></div><div className="intro-illustration"><ShieldCheck size={78} strokeWidth={1.1} /></div></section><div className="report-status-grid"><div className="report-status-card"><span>Open</span><strong>{reports.filter(r => r.status === 'Open').length}</strong><div className="status-track open-track" /></div><div className="report-status-card"><span>In progress</span><strong>{reports.filter(r => r.status === 'In progress').length}</strong><div className="status-track progress-track" /></div><div className="report-status-card"><span>Resolved</span><strong>{reports.filter(r => r.status === 'Resolved').length}</strong><div className="status-track resolved-track" /></div><div className="report-status-card"><span>Rejected</span><strong>{reports.filter(r => r.status === 'Rejected').length}</strong><div className="status-track rejected-track" /></div></div><section className="panel history-panel"><div className="panel-heading"><div><h3>Issue reports</h3><p>Review bicycle issues from around campus.</p></div><span className="map-live-pill">{reports.length} REPORTS</span></div><div className="report-list">{reports.length === 0 && <p className="muted-text" style={{ padding: '0 20px 20px' }}>No reports yet.</p>}{reports.map(r => <div className="admin-report-row" key={r.id}><div className={`report-symbol ${r.status.toLowerCase().replace(' ', '-')}`}><WrenchIcon /></div><div className="admin-report-main"><strong>{bikeLabel(r.bicycleId)} · {r.issue}</strong><span>{r.description || 'No description'}</span><span>{r.reportedAt}</span><small>Report ID {r.id}</small></div><select aria-label={`Status for ${r.id}`} value={r.status} onChange={e => void changeReportStatus(r.id, e.target.value as ProblemReport['status'])}><option>Open</option><option>In progress</option><option>Resolved</option><option>Rejected</option></select></div>)}</div></section></div>
 
   return <div className="app-shell">
     <Sidebar role={role} page={page} onNavigate={navigate} canSwitchRole={profile.role === 'admin'} userName={profile.full_name || 'UniRide user'} onSignOut={onSignOut} onRoleChange={r => { if (profile.role !== 'admin') return; setRole(r); setPage('overview'); setToast(`Previewing ${r} interface.`) }} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
     <main className="main-area">
-      <Topbar title={title.title} subtitle={title.subtitle} userName={profile.full_name || 'UniRide user'} roleLabel={profile.role === 'admin' ? 'Admin' : 'Student'} onMenu={() => setMobileOpen(true)} onSearch={value => { setSearch(value); if (value) setPage('bicycles') }} />
+      <Topbar title={title.title} subtitle={title.subtitle} userName={profile.full_name || 'UniRide user'} roleLabel={profile.role === 'admin' ? 'Admin' : 'Student'} onMenu={() => setMobileOpen(true)} onSignOut={onSignOut} reports={reports} onOpenReports={() => navigate('adminReports')} onSearch={value => { setSearch(value); if (value) setPage(role === 'admin' ? 'adminBicycles' : 'bicycles') }} />
       <div className="main-content">
         <div className="breadcrumb"><span>UniRide</span><ChevronRight size={13} /><strong>{role === 'admin' && page === 'overview' ? 'Admin dashboard' : title.title}</strong><span className="breadcrumb-spacer" /><span className="today-label"><CalendarDays size={14} /> {todayLabel}</span></div>
         {page === 'overview' && renderOverview()}
@@ -392,7 +400,7 @@ const submitReport = async (e: FormEvent) => {
         {page === 'activeRide' && renderActiveRide()}
         {page === 'history' && renderHistory()}
         {page === 'report' && renderReport()}
-        {page === 'adminBicycles' && role === 'admin' && <BicyclesPage />}
+        {page === 'adminBicycles' && role === 'admin' && <BicyclesPage initialSearch={search} />}
         {page === 'adminReports' && renderAdminReports()}
         {page === 'adminZones' && role === 'admin' && <ZonesPage />}
         {page === 'adminMaintenance' && role === 'admin' && <MaintenancePage />}
@@ -400,7 +408,7 @@ const submitReport = async (e: FormEvent) => {
         <footer className="app-footer"><div className="footer-brand"><Bike size={18} /> UniRide<span>.</span></div><span>Made for a greener campus · IIT Ropar</span>{import.meta.env.VITE_USE_DEMO_DATA === 'true' && <span className="footer-demo"><i /> DEMO DATA</span>}</footer>
       </div>
     </main>
-    {selectedBike && <Modal onClose={() => setSelectedBike(null)}><div className="bike-detail-modal"><div className="detail-bike-art" style={{ background: selectedBike.color }}><Bike size={120} strokeWidth={1.05} /><span className={`status-chip ${selectedBike.status.toLowerCase().replace(' ', '-')}`}><i />{selectedBike.status}</span></div><div className="eyebrow">UniRide / BICYCLE DETAILS</div><h2>{selectedBike.label}</h2><p className="muted-text">Bicycle ID: <strong>{selectedBike.qrCodeId || selectedBike.id}</strong></p><div className="detail-list"><div><MapPin size={16} /><span>Current location</span><strong>{selectedBike.location}</strong></div><div><Clock3 size={16} /><span>Walking distance</span><strong>{selectedBike.distance}</strong></div><div><ShieldCheck size={16} /><span>Last serviced</span><strong>{selectedBike.lastServiced}</strong></div></div><button className="button button-primary button-lg full-width" disabled={selectedBike.status !== 'Available'} onClick={() => startRide(selectedBike)}>{selectedBike.status === 'Available' ? 'Start ride' : 'Not available'} <ArrowRight size={17} /></button><p className="tiny-note">Start your ride when you are inside an active parking zone.</p></div></Modal>}
+    {selectedBike && <Modal onClose={() => setSelectedBike(null)}><div className="bike-detail-modal"><div className="detail-bike-art" style={{ background: selectedBike.color }}><Bike size={120} strokeWidth={1.05} /><span className={`status-chip ${selectedBike.status.toLowerCase().replace(' ', '-')}`}><i />{selectedBike.status}</span></div><div className="eyebrow">UniRide / BICYCLE DETAILS</div><h2>{selectedBike.label}</h2><p className="muted-text">{selectedBike.id} · Ready for your next campus hop</p><div className="detail-list"><div><MapPin size={16} /><span>Current location</span><strong>{selectedBike.location}</strong></div><div><Clock3 size={16} /><span>Walking distance</span><strong>{selectedBike.distance}</strong></div><div><ShieldCheck size={16} /><span>Last serviced</span><strong>{selectedBike.lastServiced}</strong></div></div><button className="button button-primary button-lg full-width" disabled={selectedBike.status !== 'Available'} onClick={() => startRide(selectedBike)}>{selectedBike.status === 'Available' ? 'Start ride' : 'Not available'} <ArrowRight size={17} /></button><p className="tiny-note">Start your ride when you are inside an active parking zone.</p></div></Modal>}
     {toast && <div className="toast-message"><span className="toast-check"><Check size={15} /></span>{toast}<button onClick={() => setToast('')}><X size={14} /></button></div>}
   </div>
 }
