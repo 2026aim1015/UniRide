@@ -311,45 +311,43 @@ const submitReport = async (e: FormEvent) => {
       <div className="welcome-bike-panel">
         <div className="welcome-bike-heading">
           <div>
-            <span className="welcome-bike-eyebrow">READY TO RIDE</span>
-            <h3>Available bicycles</h3>
-            <p>Choose a bicycle near your campus location.</p>
+            <h3>Nearby bicycles</h3>
+            <p>Choose your ride</p>
           </div>
-          <span className="welcome-bike-count">{availableCount} available</span>
+          
         </div>
         {homepageAvailableBikes.length > 0 ? (
           <div className="welcome-bike-list">
-            {homepageAvailableBikes.map(bike => (
+            {homepageAvailableBikes.map((bike, index) => (
               <button className="welcome-bike-item" key={bike.id} onClick={() => setSelectedBike(bike)}>
                 <span className="welcome-bike-icon" style={{ backgroundColor: bike.color || '#DCEAF6' }}>
-                  <Bike size={27} strokeWidth={1.7} />
+                  <Bike size={23} strokeWidth={1.7} />
                 </span>
                 <span className="welcome-bike-details">
-                  <strong>{bike.id} <small>{bike.label}</small></strong>
-                  <span><MapPin size={12} /> {bike.location}</span>
-                  <span className="welcome-bike-distance">{bike.distance} walk</span>
+                  <strong>{bike.label || `Bicycle ${index + 1}`}</strong>
+                  <span><MapPin size={11} /> {bike.location}</span>
                 </span>
                 <span className="welcome-bike-status"><i /> Available</span>
-                <ChevronRight size={17} className="welcome-bike-chevron" />
+                <ChevronRight size={15} className="welcome-bike-chevron" />
               </button>
             ))}
           </div>
         ) : (
           <div className="welcome-bike-empty">
-            <Bike size={34} />
-            <strong>No bicycles available right now</strong>
-            <span>Please check again in a little while.</span>
+            <Bike size={30} />
+            <strong>No bicycles available</strong>
+            <span>Please check again later.</span>
           </div>
         )}
         <button className="welcome-bike-view-all" onClick={() => navigate('bicycles')}>
-          View all bicycles <ArrowRight size={15} />
+          View all bicycles <ArrowRight size={14} />
         </button>
       </div>
     </section>
     <div className="section-heading"><div><h2>Your campus at a glance</h2><p>Ready when you are.</p></div><button className="text-button" onClick={() => navigate('bicycles')}>See all bicycles <ArrowUpRight size={16} /></button></div>
     <div className="stats-grid"><StatCard label="Bicycles available" value={String(availableCount)} note="Ready for a ride" icon={Bike} /><StatCard label="Your rides" value={String(rides.length)} note="Rides recorded" icon={Compass} tone="blue" /><StatCard label="Completed rides" value={String(rides.filter(r => r.status === 'Completed').length)} note="Finished trips" icon={Check} tone="yellow" /><StatCard label="Rides in progress" value={String(rides.filter(r => r.status === 'Active').length)} note="Right now" icon={Navigation} tone="sage" /></div>
     <div className="two-column-grid">
-      <section className="panel nearby-panel"><div className="panel-heading"><div><h3>Nearby bicycles</h3><p>Pick one and get moving.</p></div><button className="round-arrow" onClick={() => navigate('bicycles')}><ArrowUpRight size={18} /></button></div><div className="nearby-list">{bicycles.slice(0, 3).map(b => <button className="nearby-row" key={b.id} onClick={() => setSelectedBike(b)}><div className="tiny-bike" style={{ background: b.color }}><Bike size={27} /></div><div className="nearby-info"><strong>{b.id} <span>{b.label}</span></strong><small><MapPin size={12} /> {b.location} · {b.distance}</small></div><span className={`status-chip ${b.status.toLowerCase().replace(' ', '-')}`}><i />{b.status}</span><ChevronRight size={16} className="row-chevron" /></button>)}</div><button className="button button-outline full-width" onClick={() => navigate('bicycles')}>Explore all bicycles <ArrowRight size={16} /></button></section>
+      
       <section className="panel map-panel"><div className="panel-heading"><div><h3>Around campus</h3><p>Explore nearby spots</p></div><span className="map-live-pill"><span className="online-dot" /> DEMO MAP</span></div><CampusMap compact /><div className="map-footer"><span><i className="legend-dot green-dot" /> Available</span><span><i className="legend-dot gray-dot" /> In use</span><button className="text-button" onClick={() => navigate('bicycles')}>Open map <ArrowRight size={14} /></button></div></section>
     </div>
     <section className="soft-callout"><div className="callout-icon"><Leaf size={22} /></div><div><strong>Every short ride makes a difference.</strong><p>Choose a bicycle for your next trip and help keep campus a little cleaner.</p></div><div className="callout-decoration">✳</div></section>
