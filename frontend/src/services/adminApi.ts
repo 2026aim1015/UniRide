@@ -2,7 +2,22 @@ import { supabase } from '../lib/supabase'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'
 
-export type AdminBicycle = { id: string; qr_code_id: string; display_name: string; status: string }
+export type AdminBicycle = {
+  id: string
+  qr_code_id: string
+  display_name: string
+  status: string
+  current_zone_id: string | null
+  last_latitude?: number | null
+  last_longitude?: number | null
+  created_at?: string
+}
+export type AdminBicycleCreate = {
+  display_name: string
+  status?: 'available' | 'maintenance' | 'offline'
+  current_zone_id?: string | null
+}
+export type AdminBicycleUpdate = Partial<AdminBicycleCreate>
 export type AdminZone = { id: string; name: string }
 export type AdminProfile = { id: string; full_name: string | null; roll_number: string | null; role: string }
 export type MaintenanceStatus = 'open' | 'in_progress' | 'completed' | 'cancelled'
@@ -51,6 +66,12 @@ async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const adminApi = {
   bicycles: () => adminRequest<AdminBicycle[]>('/bicycles'),
+  createBicycle: (body: AdminBicycleCreate) =>
+    adminRequest<AdminBicycle>('/bicycles', { method: 'POST', body: JSON.stringify(body) }),
+  updateBicycle: (id: string, body: AdminBicycleUpdate) =>
+    adminRequest<AdminBicycle>(`/bicycles/${encodeURIComponent(id)}`, {
+      method: 'PATCH', body: JSON.stringify(body),
+    }),
   zones: () => adminRequest<AdminZone[]>('/parking-zones?include_inactive=true'),
   profiles: () => adminRequest<AdminProfile[]>('/profiles'),
   rides: () => adminRequest<AdminRide[]>('/rides'),

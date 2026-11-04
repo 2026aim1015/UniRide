@@ -11,6 +11,7 @@ import { Sidebar, type Page } from './components/Sidebar'
 import ZonesPage from './components/admin/ZonesPage'
    import MaintenancePage from './components/admin/MaintenancePage'
    import RidesPage from './components/admin/RidesPage'
+import BicyclesPage from './components/admin/BicyclesPage'
 import { Topbar } from './components/Topbar'
 import { BicycleCard } from './components/BicycleCard'
 import { api } from './services/api'
@@ -186,7 +187,7 @@ useEffect(() => {
   }, [toast])
 
   const filteredBikes = useMemo(() => bicycles.filter(b => {
-    const matchesSearch = `${b.id} ${b.label} ${b.location}`.toLowerCase().includes(search.toLowerCase())
+    const matchesSearch = `${b.id} ${b.qrCodeId ?? ''} ${b.label} ${b.location}`.toLowerCase().includes(search.toLowerCase())
     return matchesSearch && (statusFilter === 'All' || b.status === statusFilter)
   }), [bicycles, search, statusFilter])
   const availableCount = bicycles.filter(b => b.status === 'Available').length
@@ -393,7 +394,7 @@ const submitReport = async (e: FormEvent) => {
         {page === 'activeRide' && renderActiveRide()}
         {page === 'history' && renderHistory()}
         {page === 'report' && renderReport()}
-        {page === 'adminBicycles' && renderAdminBicycles()}
+        {page === 'adminBicycles' && role === 'admin' && <BicyclesPage />}
         {page === 'adminReports' && renderAdminReports()}
         {page === 'adminZones' && role === 'admin' && <ZonesPage />}
         {page === 'adminMaintenance' && role === 'admin' && <MaintenancePage />}
@@ -401,7 +402,7 @@ const submitReport = async (e: FormEvent) => {
         <footer className="app-footer"><div className="footer-brand"><Bike size={18} /> UniRide<span>.</span></div><span>Made for a greener campus · IIT Ropar</span>{import.meta.env.VITE_USE_DEMO_DATA === 'true' && <span className="footer-demo"><i /> DEMO DATA</span>}</footer>
       </div>
     </main>
-    {selectedBike && <Modal onClose={() => setSelectedBike(null)}><div className="bike-detail-modal"><div className="detail-bike-art" style={{ background: selectedBike.color }}><Bike size={120} strokeWidth={1.05} /><span className={`status-chip ${selectedBike.status.toLowerCase().replace(' ', '-')}`}><i />{selectedBike.status}</span></div><div className="eyebrow">UniRide / BICYCLE DETAILS</div><h2>{selectedBike.label}</h2><p className="muted-text">{selectedBike.id} · Ready for your next campus hop</p><div className="detail-list"><div><MapPin size={16} /><span>Current location</span><strong>{selectedBike.location}</strong></div><div><Clock3 size={16} /><span>Walking distance</span><strong>{selectedBike.distance}</strong></div><div><ShieldCheck size={16} /><span>Last serviced</span><strong>{selectedBike.lastServiced}</strong></div></div><button className="button button-primary button-lg full-width" disabled={selectedBike.status !== 'Available'} onClick={() => startRide(selectedBike)}>{selectedBike.status === 'Available' ? 'Start ride' : 'Not available'} <ArrowRight size={17} /></button><p className="tiny-note">Start your ride when you are inside an active parking zone.</p></div></Modal>}
+    {selectedBike && <Modal onClose={() => setSelectedBike(null)}><div className="bike-detail-modal"><div className="detail-bike-art" style={{ background: selectedBike.color }}><Bike size={120} strokeWidth={1.05} /><span className={`status-chip ${selectedBike.status.toLowerCase().replace(' ', '-')}`}><i />{selectedBike.status}</span></div><div className="eyebrow">UniRide / BICYCLE DETAILS</div><h2>{selectedBike.label}</h2><p className="muted-text">Bicycle ID: <strong>{selectedBike.qrCodeId || selectedBike.id}</strong></p><div className="detail-list"><div><MapPin size={16} /><span>Current location</span><strong>{selectedBike.location}</strong></div><div><Clock3 size={16} /><span>Walking distance</span><strong>{selectedBike.distance}</strong></div><div><ShieldCheck size={16} /><span>Last serviced</span><strong>{selectedBike.lastServiced}</strong></div></div><button className="button button-primary button-lg full-width" disabled={selectedBike.status !== 'Available'} onClick={() => startRide(selectedBike)}>{selectedBike.status === 'Available' ? 'Start ride' : 'Not available'} <ArrowRight size={17} /></button><p className="tiny-note">Start your ride when you are inside an active parking zone.</p></div></Modal>}
     {toast && <div className="toast-message"><span className="toast-check"><Check size={15} /></span>{toast}<button onClick={() => setToast('')}><X size={14} /></button></div>}
   </div>
 }

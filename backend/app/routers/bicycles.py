@@ -9,12 +9,32 @@ from app.schemas import BicycleCreate, BicycleOut, BicycleUpdate
 
 router = APIRouter(prefix="/bicycles", tags=["bicycles"])
 
+
+def _new_bicycle_code(db: Session) -> str:
+    # Random suffix keeps IDs readable while avoiding race-prone sequential counters.
+    # The database UNIQUE constraint remains the final collision guard.
+    for _ in range(10):
+        candidate = f"UR-BIKE-{uuid.uuid4().hex[:8].upper()}"
+        exists = db.scalar(select(Bicycle.id).where(Bicycle.qr_code_id == candidate))
+        if exists is None:
+            return candidate
+    raise HTTPException(status_code=503, detail="Could not allocate a unique bicycle ID. Please try again.")
+
 @router.get("", response_model=list[BicycleOut])
 def list_bicycles(status: str | None = None, db: Session = Depends(get_db), _profile: Profile = Depends(current_profile)):
     query = select(Bicycle)
     if status:
         query = query.where(Bicycle.status == status)
     return list(db.scalars(query.order_by(Bicycle.created_at.desc())).all())
+
+@router.get("/by-code/{qr_code_id}", response_model=BicycleOut)
+def get_bicycle_by_code(qr_code_id: str, db: Session = Depends(get_db), _profile: Profile = Depends(current_profile)):
+    code = qr_code_id.strip()
+    item = db.scalar(select(Bicycle).where(Bicycle.qr_code_id == code))
+    if item is None:
+        raise HTTPException(status_code=404, detail="No bicycle found for this bicycle ID")
+    return item
+
 
 @router.get("/{bicycle_id}", response_model=BicycleOut)
 def get_bicycle(bicycle_id: uuid.UUID, db: Session = Depends(get_db), _profile: Profile = Depends(current_profile)):
@@ -25,7 +45,10 @@ def get_bicycle(bicycle_id: uuid.UUID, db: Session = Depends(get_db), _profile: 
 
 @router.post("", response_model=BicycleOut, status_code=201)
 def create_bicycle(payload: BicycleCreate, db: Session = Depends(get_db), _admin: Profile = Depends(require_admin)):
-    item = Bicycle(**payload.model_dump())
+    values = payload.model_dump()
+    supplied_code = values.pop("qr_code_id", None)
+    values["qr_code_id"] = supplied_code.strip() if supplied_code else _new_bicycle_code(db)
+    item = Bicycle(**values)
     db.add(item)
     try:
         db.commit()
