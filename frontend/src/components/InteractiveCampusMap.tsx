@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Circle, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
 import L from "leaflet";
@@ -47,16 +47,24 @@ function markerSizeForZoom(zoom: number) {
   return 24;
 }
 
+const zoneIconCache = new Map<string, L.DivIcon>();
+
 function makeZoneIcon(available: number, selected: boolean, size: number) {
+  const cacheKey = `${available}-${selected}-${size}`;
+  const cached = zoneIconCache.get(cacheKey);
+  if (cached) return cached;
+
   const fontSize = size <= 14 ? 9 : size <= 19 ? 11 : 13;
   const statusClass = available > 0 ? "available" : "unavailable";
 
-  return L.divIcon({
+  const icon = L.divIcon({
     className: "uniride-zone-marker",
     html: `<div class="uniride-zone-count ${statusClass}${selected ? " selected" : ""}" style="--zone-marker-size:${size}px;--zone-marker-font:${fontSize}px" aria-label="${available} available bicycles"><strong>${available}</strong></div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
+  zoneIconCache.set(cacheKey, icon);
+  return icon;
 }
 
 function groupZonesForZoom(zones: ZoneSummary[], zoom: number) {
@@ -176,15 +184,24 @@ function MapFocus({
 }) {
   const map = useMap();
 
+  // Depend on primitive values only. The data refresh creates new zone objects every
+  // time, and depending on those would re-centre the map and undo the user's panning.
+  const zoneId = selectedZone?.id ?? null;
+  const zoneLat = selectedZone?.latitude ?? null;
+  const zoneLng = selectedZone?.longitude ?? null;
+  const studentLat = studentPosition?.[0] ?? null;
+  const studentLng = studentPosition?.[1] ?? null;
+
   useEffect(() => {
-    if (selectedZone) {
-      map.flyTo([selectedZone.latitude, selectedZone.longitude], 18, { duration: 0.5 });
-    } else if (studentPosition) {
-      map.setView(studentPosition, 16);
+    if (zoneLat !== null && zoneLng !== null) {
+      map.flyTo([zoneLat, zoneLng], 18, { duration: 0.5 });
+    } else if (studentLat !== null && studentLng !== null) {
+      map.setView([studentLat, studentLng], 16);
     } else {
       map.setView(CAMPUS_CENTER, 16);
     }
-  }, [map, studentPosition, selectedZone]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, zoneId, zoneLat, zoneLng, studentLat, studentLng]);
 
   return null;
 }
@@ -215,7 +232,7 @@ function formatLastSeen(value: string | null) {
   return `Location updated ${date.toLocaleString()}`;
 }
 
-export default function InteractiveCampusMap({ compact = false, refreshKey = 0 }: Props) {
+function InteractiveCampusMap({ compact = false, refreshKey = 0 }: Props) {
   const [bicycles, setBicycles] = useState<ApiBicycle[]>([]);
   const [zones, setZones] = useState<ApiParkingZone[]>([]);
   const [studentPosition, setStudentPosition] = useState<[number, number] | null>(null);
@@ -226,7 +243,11 @@ export default function InteractiveCampusMap({ compact = false, refreshKey = 0 }
   const [locationMessage, setLocationMessage] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  const inFlight = useRef(false);
+
   const loadMapData = useCallback(async (isRefresh = false) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError("");
@@ -270,6 +291,7 @@ export default function InteractiveCampusMap({ compact = false, refreshKey = 0 }
     } finally {
       setLoading(false);
       setRefreshing(false);
+      inFlight.current = false;
     }
   }, []);
 
@@ -537,3 +559,6 @@ export default function InteractiveCampusMap({ compact = false, refreshKey = 0 }
     </section>
   );
 }
+
+// Memoised: the ride timer re-renders the page every second, which must not re-render the map.
+export default memo(InteractiveCampusMap);

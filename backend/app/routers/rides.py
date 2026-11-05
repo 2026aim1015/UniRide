@@ -125,3 +125,37 @@ def end_ride(ride_id: uuid.UUID, payload: RideEnd, db: Session = Depends(get_db)
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail="Ride could not be ended") from exc
+
+
+@router.post("/{ride_id}/cancel", response_model=RideOut)
+def cancel_ride(ride_id: uuid.UUID, db: Session = Depends(get_db), profile: Profile = Depends(current_profile)):
+    """Close an unfinished ride without a parking-zone check (stuck ride, bicycle left behind, test ride).
+
+    The rider can cancel their own ride; an admin can cancel any ride. The bicycle is released.
+    """
+    try:
+        ride = db.scalar(select(Ride).where(Ride.id == ride_id).with_for_update())
+        if ride is None:
+            raise HTTPException(status_code=404, detail="Ride not found")
+        if ride.user_id != profile.id and profile.role != "admin":
+            raise HTTPException(status_code=403, detail="You cannot cancel another user's ride")
+        if ride.status not in OPEN:
+            raise HTTPException(status_code=409, detail="Ride is already finished")
+        bicycle = db.scalar(select(Bicycle).where(Bicycle.id == ride.bicycle_id).with_for_update())
+        ride.status = "cancelled"
+        ride.end_time = datetime.now(timezone.utc)
+        if bicycle and bicycle.status == "in_use":
+            repair_open = db.scalar(select(MaintenanceRecord.id).where(
+                MaintenanceRecord.bicycle_id == bicycle.id,
+                MaintenanceRecord.status.in_(("open", "in_progress"))).limit(1))
+            bicycle.status = "maintenance" if repair_open else "available"
+        db.add(AuditLog(actor_id=profile.id, action="ride.cancelled", entity_type="ride", entity_id=ride.id))
+        db.commit()
+        db.refresh(ride)
+        return ride
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Ride could not be cancelled") from exc

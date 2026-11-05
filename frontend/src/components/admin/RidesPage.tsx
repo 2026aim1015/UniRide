@@ -42,6 +42,7 @@ export default function RidesPage() {
   const [shown, setShown] = useState(PAGE_SIZE)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -78,6 +79,20 @@ export default function RidesPage() {
       rider: (id: string) => riders.get(id) || `User ${id.slice(0, 8)}`,
     }
   }, [bicycles, zones, profiles])
+
+  const cancelRide = async (ride: AdminRide) => {
+    if (!window.confirm('Cancel this unfinished ride and release the bicycle?')) return
+    setBusyId(ride.id)
+    setError('')
+    try {
+      await adminApi.cancelRide(ride.id)
+      await load()
+    } catch (err) {
+      setError(errorMessage(err, 'Could not cancel the ride.'))
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   const openCount = rides.filter(r => OPEN_STATUSES.includes(r.status)).length
   const completedCount = rides.filter(r => r.status === 'completed').length
@@ -134,7 +149,7 @@ export default function RidesPage() {
           <div className="adm-table-wrap">
             <table className="adm-table">
               <thead>
-                <tr><th>Bicycle</th><th>Rider</th><th>Started</th><th>Duration</th><th>From</th><th>To</th><th>Status</th></tr>
+                <tr><th>Bicycle</th><th>Rider</th><th>Started</th><th>Duration</th><th>From</th><th>To</th><th>Status</th><th></th></tr>
               </thead>
               <tbody>
                 {filtered.slice(0, shown).map(ride => (
@@ -146,6 +161,7 @@ export default function RidesPage() {
                     <td>{lookup.zone(ride.start_zone_id)}</td>
                     <td>{lookup.zone(ride.end_zone_id)}</td>
                     <td><span className={`status-label ${ride.status === 'active' ? 'active' : ride.status}`}>{rideStatusText(ride.status)}</span></td>
+                    <td>{OPEN_STATUSES.includes(ride.status) && <button className="button button-ghost" disabled={busyId === ride.id} onClick={() => void cancelRide(ride)}>Cancel ride</button>}</td>
                   </tr>
                 ))}
               </tbody>

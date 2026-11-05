@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { memo, useEffect, useMemo } from 'react'
 import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import type { LatLngBoundsExpression, LatLngExpression } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -20,8 +20,8 @@ function FitRoute({ points }: { points: RideCoordinates[] }) {
   return null
 }
 
-export default function RideRouteMap({ points, height = 300 }: { points: RideCoordinates[]; height?: number }) {
-  const line = points.map(p => [p.latitude, p.longitude] as [number, number])
+function RideRouteMap({ points, height = 300 }: { points: RideCoordinates[]; height?: number }) {
+  const line = useMemo(() => points.map(p => [p.latitude, p.longitude] as [number, number]), [points])
   const first = points[0]
   const last = points[points.length - 1]
   return (
@@ -48,3 +48,5 @@ export default function RideRouteMap({ points, height = 300 }: { points: RideCoo
     </div>
   )
 }
+
+export default memo(RideRouteMap)

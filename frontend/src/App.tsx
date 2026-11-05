@@ -24,39 +24,35 @@ import QRScanner from "./components/QRScanner";
 import './styles/Homepagebikes.css'
 
 
-const getCurrentLocation = (): Promise<{
-  latitude: number
-  longitude: number
-}> => {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation is not supported by this browser.'))
-      return
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      position => {
-        resolve({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        })
-      },
-      error => {
-        reject(
-          new Error(
-            error.code === 1
-              ? 'Please allow location access to start your ride.'
-              : 'Could not get your location. Please try again.',
-          ),
-        )
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      },
+const getCurrentLocation = (): Promise<{ latitude: number; longitude: number }> => {
+  const attempt = (options: PositionOptions) =>
+    new Promise<GeolocationPosition>((resolve, reject) =>
+      navigator.geolocation.getCurrentPosition(resolve, reject, options),
     )
-  })
+
+  return (async () => {
+    if (!navigator.geolocation) throw new Error('Geolocation is not supported by this browser.')
+    try {
+      let position: GeolocationPosition
+      try {
+        position = await attempt({ enableHighAccuracy: true, timeout: 8000, maximumAge: 0 })
+      } catch (first) {
+        if ((first as GeolocationPositionError).code === 1) throw first
+        // Desktop browsers often cannot give a high-accuracy fix: retry with relaxed settings.
+        position = await attempt({ enableHighAccuracy: false, timeout: 20000, maximumAge: 30000 })
+      }
+      return { latitude: position.coords.latitude, longitude: position.coords.longitude }
+    } catch (error) {
+      const code = (error as GeolocationPositionError).code
+      throw new Error(
+        code === 1
+          ? 'Please allow location access to start your ride.'
+          : code === 2
+            ? 'Your device could not determine its location. Check that location services (or the DevTools Sensors override) are on.'
+            : 'Getting your location timed out. Please try again.',
+      )
+    }
+  })()
 }
 
 const bikeCode = (b: Bicycle) => b.qrCodeId || b.id
@@ -113,6 +109,8 @@ function UniRideDashboard({ profile, onSignOut }: { profile: UserProfile; onSign
   const [ridePoints, setRidePoints] = useState<RideCoordinates[]>([])
   const [gpsStatus, setGpsStatus] = useState<'tracking' | 'denied' | 'unavailable' | 'upload-failed'>('tracking')
   const [mapRefresh, setMapRefresh] = useState(0)
+  const [rideError, setRideError] = useState('')
+  const [endingRide, setEndingRide] = useState(false)
   const [zonesOpen, setZonesOpen] = useState(false)
   const [zoneList, setZoneList] = useState<ParkingZoneInfo[]>([])
   const [zonesLoading, setZonesLoading] = useState(false)
@@ -379,48 +377,57 @@ const result = await api.startRide(bike.id, startLocation)
     )
   }
 }
-  const endRide = async () => {
-  if (!rideBike || !activeRideId) {
-    setToast('No valid active ride was found.')
-    return
-  }
-
-  try {
-    const endLocation = await getCurrentLocation()
-    await api.endRide(activeRideId, endLocation)
-
-    setBicycles(old =>
-      old.map(b =>
-        b.id === rideBike.id
-          ? { ...b, status: 'Available' }
-          : b,
-      ),
-    )
-
+  const clearRideState = () => {
     setRideBike(null)
     setActiveRideId(null)
     setRideSeconds(0)
     setRideStartedAt(null)
     setRidePoints([])
+    setRideError('')
     void refreshBicycles()
-
-    navigate('history')
-    setToast('Ride ended successfully.')
-    try {
-      setRides(await api.getRides())
-    } catch (refreshError) {
-      setToast(refreshError instanceof Error
-        ? `Ride ended, but history could not refresh: ${refreshError.message}`
-        : 'Ride ended, but history could not refresh.')
-    }
-  } catch (error) {
-    setToast(
-      error instanceof Error
-        ? error.message
-        : 'Could not end the ride. Please try again.',
-    )
   }
-}
+
+  const endRide = async () => {
+    if (!rideBike || !activeRideId) {
+      setToast('No valid active ride was found.')
+      return
+    }
+    setEndingRide(true)
+    setRideError('')
+    try {
+      const endLocation = await getCurrentLocation()
+      await api.endRide(activeRideId, endLocation)
+      clearRideState()
+      navigate('history')
+      setToast('Ride ended successfully.')
+      try {
+        setRides(await api.getRides())
+      } catch (refreshError) {
+        setToast(refreshError instanceof Error
+          ? `Ride ended, but history could not refresh: ${refreshError.message}`
+          : 'Ride ended, but history could not refresh.')
+      }
+    } catch (error) {
+      // Keep the reason on screen (a toast disappears too quickly to read).
+      setRideError(error instanceof Error ? error.message : 'Could not end the ride. Please try again.')
+    } finally {
+      setEndingRide(false)
+    }
+  }
+
+  const cancelRide = async () => {
+    if (!activeRideId) return
+    if (!window.confirm('Cancel this ride without parking? Use this only if you cannot end it normally. The bicycle will be released.')) return
+    try {
+      await api.cancelRide(activeRideId)
+      clearRideState()
+      navigate('history')
+      setToast('Ride cancelled.')
+      void api.getRides().then(setRides).catch(() => undefined)
+    } catch (error) {
+      setRideError(error instanceof Error ? error.message : 'Could not cancel the ride.')
+    }
+  }
 
 const submitReport = async (e: FormEvent) => {
   e.preventDefault()
@@ -507,7 +514,7 @@ const submitReport = async (e: FormEvent) => {
   </div>
 
   const renderActiveRide = () => <div className="content-stack">
-    {rideBike ? <section className="active-ride-layout"><div className="active-ride-main panel"><div className="ride-live-row"><span className="live-pill"><i /> RIDE IN PROGRESS</span> <span className="ride-id">Ride ID · {activeRideId ?? 'Unavailable'}</span></div><div className="ride-bike-orbit"><div className="orbit-ring" /><Bike size={100} strokeWidth={1.15} /></div><h2>Enjoy the ride, <span>{firstName}.</span></h2><p className="muted-text">You’re riding {bikeCode(rideBike)} · {rideBike.label}</p><div className="ride-timer">{String(Math.floor(rideSeconds / 3600)).padStart(2,'0')}:{String(Math.floor((rideSeconds % 3600) / 60)).padStart(2,'0')}:{String(rideSeconds % 60).padStart(2,'0')}</div><span className="muted-text">Time on your ride</span><div className="ride-progress"><span /></div><div className="ride-facts"><div><MapPin size={17} /><span>Started at</span><strong>{rideBike.location}</strong></div><div><Navigation size={17} /><span>Distance</span><strong>{rideDistanceLabel}</strong>{gpsStatus !== 'tracking' && <small className="tiny-note">{gpsStatus === 'denied' ? 'Location access is blocked. Allow it in your browser settings.' : gpsStatus === 'unavailable' ? 'GPS signal lost. Trying again…' : 'Offline: route points could not be saved yet.'}</small>}</div></div><button className="button button-danger button-lg full-width" onClick={endRide}>End ride <ArrowRight size={17} /></button><p className="tiny-note">Please park in a designated zone before ending your ride.</p></div><div className="content-stack"><section className="panel"><div className="panel-heading"><div><h3>Your route</h3><p>{ridePoints.length > 1 ? `${ridePoints.length} GPS points recorded` : 'Route appears as you move'}</p></div></div><RideRouteMap points={ridePoints} /></section><section className="parking-card"><div className="parking-icon"><MapPin size={20} /></div><h3>Ready to park?</h3><p>Look for a designated parking zone near your destination.</p><button className="button button-outline full-width" onClick={() => void openZones()}>View parking zones</button></section></div></section> : <div className="empty-state ride-empty"><div className="empty-icon"><Bike size={42} /></div><h2>No active ride right now.</h2><p>Your next campus trip is just a bicycle away.</p><button className="button button-primary button-lg" onClick={() => navigate('bicycles')}>Find a bicycle <ArrowRight size={17} /></button><div className="empty-footnote"><ShieldCheck size={15} /> Ride details will appear here after you start a ride.</div></div>}
+    {rideBike ? <section className="active-ride-layout"><div className="active-ride-main panel"><div className="ride-live-row"><span className="live-pill"><i /> RIDE IN PROGRESS</span> <span className="ride-id">Ride ID · {activeRideId ?? 'Unavailable'}</span></div><div className="ride-bike-orbit"><div className="orbit-ring" /><Bike size={100} strokeWidth={1.15} /></div><h2>Enjoy the ride, <span>{firstName}.</span></h2><p className="muted-text">You’re riding {bikeCode(rideBike)} · {rideBike.label}</p><div className="ride-timer">{String(Math.floor(rideSeconds / 3600)).padStart(2,'0')}:{String(Math.floor((rideSeconds % 3600) / 60)).padStart(2,'0')}:{String(rideSeconds % 60).padStart(2,'0')}</div><span className="muted-text">Time on your ride</span><div className="ride-progress"><span /></div><div className="ride-facts"><div><MapPin size={17} /><span>Started at</span><strong>{rideBike.location}</strong></div><div><Navigation size={17} /><span>Distance</span><strong>{rideDistanceLabel}</strong>{gpsStatus !== 'tracking' && <small className="tiny-note">{gpsStatus === 'denied' ? 'Location access is blocked. Allow it in your browser settings.' : gpsStatus === 'unavailable' ? 'GPS signal lost. Trying again…' : 'Offline: route points could not be saved yet.'}</small>}</div></div>{rideError && <p role="alert" className="adm-msg error" style={{ margin: '0 0 12px' }}>{rideError}</p>}<button className="button button-danger button-lg full-width" disabled={endingRide} onClick={() => void endRide()}>{endingRide ? 'Checking your location…' : 'End ride'} <ArrowRight size={17} /></button><p className="tiny-note">Please park in a designated zone before ending your ride.</p><button className="text-button" onClick={() => void cancelRide()}>Can’t end the ride? Cancel it</button></div><div className="content-stack"><section className="panel"><div className="panel-heading"><div><h3>Your route</h3><p>{ridePoints.length > 1 ? `${ridePoints.length} GPS points recorded` : 'Route appears as you move'}</p></div></div><RideRouteMap points={ridePoints} /></section><section className="parking-card"><div className="parking-icon"><MapPin size={20} /></div><h3>Ready to park?</h3><p>Look for a designated parking zone near your destination.</p><button className="button button-outline full-width" onClick={() => void openZones()}>View parking zones</button></section></div></section> : <div className="empty-state ride-empty"><div className="empty-icon"><Bike size={42} /></div><h2>No active ride right now.</h2><p>Your next campus trip is just a bicycle away.</p><button className="button button-primary button-lg" onClick={() => navigate('bicycles')}>Find a bicycle <ArrowRight size={17} /></button><div className="empty-footnote"><ShieldCheck size={15} /> Ride details will appear here after you start a ride.</div></div>}
   </div>
 
   const renderHistory = () => <div className="content-stack">

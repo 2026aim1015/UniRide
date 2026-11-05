@@ -400,6 +400,11 @@ async updateReportStatus(
     )
   },
 
+  // Closes a stuck ride without the parking-zone check and frees the bicycle.
+  async cancelRide(rideId: string): Promise<void> {
+    await request(`/rides/${encodeURIComponent(rideId)}/cancel`, { method: 'POST' })
+  },
+
   async recordRideLocation(
   rideId: string,
   location: RideCoordinates,

@@ -60,6 +60,7 @@ export const adminApi = {
   zones: () => adminRequest<AdminZone[]>('/parking-zones?include_inactive=true'),
   profiles: () => adminRequest<AdminProfile[]>('/profiles'),
   rides: () => adminRequest<AdminRide[]>('/rides'),
+  cancelRide: (id: string) => adminRequest<AdminRide>(`/rides/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   maintenance: () => adminRequest<MaintenanceRecord[]>('/maintenance-records'),
   createMaintenance: (body: { bicycle_id: string; description: string; report_id?: string; assigned_to?: string }) =>
     adminRequest<MaintenanceRecord>('/maintenance-records', { method: 'POST', body: JSON.stringify(body) }),
