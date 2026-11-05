@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.auth import require_admin
 from app.database import get_db
-from app.models import AuditLog, Bicycle, MaintenanceRecord, Profile
+from app.models import AuditLog, Bicycle, MaintenanceRecord, ProblemReport, Profile
 from app.schemas import MaintenanceCreate, MaintenanceOut, MaintenanceUpdate
 
 router = APIRouter(prefix="/maintenance-records", tags=["maintenance"])
@@ -19,6 +19,19 @@ def create_maintenance(payload: MaintenanceCreate, db: Session = Depends(get_db)
     bicycle = db.get(Bicycle, payload.bicycle_id)
     if bicycle is None:
         raise HTTPException(status_code=404, detail="Bicycle not found")
+    if bicycle.status == "in_use":
+        raise HTTPException(status_code=409, detail="Bicycle is currently being ridden. Wait until the ride ends.")
+    report = None
+    if payload.report_id:
+        report = db.get(ProblemReport, payload.report_id)
+        if report is None:
+            raise HTTPException(status_code=404, detail="Report not found")
+        if report.bicycle_id != bicycle.id:
+            raise HTTPException(status_code=400, detail="This report belongs to a different bicycle")
+        if report.status == "open":
+            report.status = "investigating"  # work has been scheduled for this report
+    if payload.assigned_to and db.get(Profile, payload.assigned_to) is None:
+        raise HTTPException(status_code=404, detail="Assignee not found")
     item = MaintenanceRecord(**payload.model_dump())
     bicycle.status = "maintenance"
     db.add(item)
@@ -32,13 +45,21 @@ def update_maintenance(record_id: uuid.UUID, payload: MaintenanceUpdate, db: Ses
     item = db.get(MaintenanceRecord, record_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Maintenance record not found")
+    if item.status in ("completed", "cancelled"):
+        raise HTTPException(status_code=409, detail="This record is already closed")
     item.status = payload.status
     if "assigned_to" in payload.model_fields_set:  # only change the assignee if the client sent it
+        if payload.assigned_to and db.get(Profile, payload.assigned_to) is None:
+            raise HTTPException(status_code=404, detail="Assignee not found")
         item.assigned_to = payload.assigned_to
     if payload.status == "in_progress" and item.started_at is None:
         item.started_at = datetime.now(timezone.utc)
     if payload.status == "completed":
         item.completed_at = datetime.now(timezone.utc)
+    if payload.status == "completed" and item.report_id:
+        linked = db.get(ProblemReport, item.report_id)
+        if linked and linked.status in ("open", "investigating"):
+            linked.status = "resolved"
     if payload.status in ("completed", "cancelled"):
         # Give the bicycle back, unless another repair for it is still open.
         other_open = db.scalar(

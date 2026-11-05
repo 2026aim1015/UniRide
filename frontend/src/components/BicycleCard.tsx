@@ -10,8 +10,8 @@ export function BicycleCard({ bicycle, onSelect, onRide }: { bicycle: Bicycle; o
       <div className="bike-id">{bicycle.qrCodeId || bicycle.id}</div>
     </div>
     <div className="bike-card-body">
-      <div><h3>{bicycle.label}</h3><p className="muted-text">Ready for your next campus hop</p></div>
-      <div className="bike-meta"><span><MapPin size={14} />{bicycle.location}</span><span><Clock3 size={14} />{bicycle.distance}</span></div>
+      <div><h3>{bicycle.label}</h3><p className="muted-text">{available ? 'Ready for your next campus hop' : 'Not available right now'}</p></div>
+      <div className="bike-meta"><span><MapPin size={14} />{bicycle.location}</span><span><Clock3 size={14} />{bicycle.lastUpdated}</span></div>
       <div className="bike-card-actions"><button className="button button-light" onClick={() => onSelect(bicycle)}>Details</button><button className="button button-primary" disabled={!available} onClick={() => onRide(bicycle)}>{available ? 'Start ride' : bicycle.status === 'In use' ? 'In use' : 'Unavailable'}</button></div>
     </div>
   </article>

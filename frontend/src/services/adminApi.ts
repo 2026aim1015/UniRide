@@ -5,6 +5,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api
 export type AdminBicycle = { id: string; qr_code_id: string; display_name: string; status: string; current_zone_id: string | null; last_latitude: number | null; last_longitude: number | null }
 export type AdminZone = { id: string; name: string }
 export type AdminProfile = { id: string; full_name: string | null; roll_number: string | null; role: string }
+export type AdminReport = { id: string; bicycle_id: string; category: string; description: string; status: string; created_at: string }
 export type MaintenanceStatus = 'open' | 'in_progress' | 'completed' | 'cancelled'
 export type MaintenanceRecord = {
   id: string
@@ -60,13 +61,14 @@ export const adminApi = {
   profiles: () => adminRequest<AdminProfile[]>('/profiles'),
   rides: () => adminRequest<AdminRide[]>('/rides'),
   maintenance: () => adminRequest<MaintenanceRecord[]>('/maintenance-records'),
-  createMaintenance: (body: { bicycle_id: string; description: string; report_id?: string }) =>
+  createMaintenance: (body: { bicycle_id: string; description: string; report_id?: string; assigned_to?: string }) =>
     adminRequest<MaintenanceRecord>('/maintenance-records', { method: 'POST', body: JSON.stringify(body) }),
-  updateMaintenanceStatus: (id: string, status: MaintenanceStatus) =>
+  updateMaintenanceStatus: (id: string, status: MaintenanceStatus, assignedTo?: string | null) =>
     adminRequest<MaintenanceRecord>(`/maintenance-records/${encodeURIComponent(id)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(assignedTo === undefined ? { status } : { status, assigned_to: assignedTo }),
     }),
+  reports: () => adminRequest<AdminReport[]>('/reports'),
 }
 
 export const errorMessage = (error: unknown, fallback: string) =>

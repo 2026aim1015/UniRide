@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import Base, engine
 from app import models  # noqa: F401 - register all SQLAlchemy models
+from app.ratelimit import RateLimitMiddleware
 from app.routers import profiles, bicycles, zones, rides, reports, maintenance, hardware, location_events
 
 settings = get_settings()
@@ -15,6 +16,9 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title=settings.app_name, version="2.0.0", lifespan=lifespan)
+if settings.rate_limit_per_minute > 0:
+    app.add_middleware(RateLimitMiddleware, per_minute=settings.rate_limit_per_minute,
+                       write_per_minute=settings.rate_limit_write_per_minute)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origin_list, allow_credentials=True,
                    allow_methods=["*"], allow_headers=["*"])
 

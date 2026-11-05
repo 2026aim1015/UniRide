@@ -6,12 +6,10 @@ export interface Bicycle {
   qrCodeId?: string
   label: string
   location: string
-  distance: string
+  lastUpdated: string
+  zoneId: string | null
   status: BicycleStatus
-  battery?: string
-  lastServiced: string
   color: string
-  
 }
 
 export interface Ride {
@@ -42,4 +40,24 @@ export interface UserProfile {
   role: AppRole
   account_status: 'active' | 'suspended'
   created_at: string
+}
+
+export interface RideCoordinates {
+  latitude: number
+  longitude: number
+}
+
+export interface ParkingZoneInfo {
+  id: string
+  name: string
+  latitude: number
+  longitude: number
+  radius_meters: number
+  is_active: boolean
+}
+
+export interface ActiveRide {
+  rideId: string
+  bicycleId: string
+  startedAt: number
 }

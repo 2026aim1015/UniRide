@@ -36,6 +36,9 @@ export default function RidesPage() {
   const [profiles, setProfiles] = useState<AdminProfile[]>([])
   const [filter, setFilter] = useState<'all' | 'open' | 'completed' | 'cancelled'>('all')
   const [search, setSearch] = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [zoneFilter, setZoneFilter] = useState('')
   const [shown, setShown] = useState(PAGE_SIZE)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -83,6 +86,10 @@ export default function RidesPage() {
     if (filter === 'open' && !OPEN_STATUSES.includes(ride.status)) return false
     if (filter === 'completed' && ride.status !== 'completed') return false
     if (filter === 'cancelled' && ride.status !== 'cancelled') return false
+    const started = new Date(ride.start_time).getTime()
+    if (fromDate && started < new Date(`${fromDate}T00:00:00`).getTime()) return false
+    if (toDate && started > new Date(`${toDate}T23:59:59`).getTime()) return false
+    if (zoneFilter && ride.start_zone_id !== zoneFilter && ride.end_zone_id !== zoneFilter) return false
     const term = search.trim().toLowerCase()
     if (!term) return true
     return lookup.bike(ride.bicycle_id).toLowerCase().includes(term) || lookup.rider(ride.user_id).toLowerCase().includes(term)
@@ -109,6 +116,15 @@ export default function RidesPage() {
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
+          <label className="adm-inline">From <input type="date" value={fromDate} max={toDate || undefined} onChange={e => { setFromDate(e.target.value); setShown(PAGE_SIZE) }} /></label>
+          <label className="adm-inline">To <input type="date" value={toDate} min={fromDate || undefined} onChange={e => { setToDate(e.target.value); setShown(PAGE_SIZE) }} /></label>
+          <select value={zoneFilter} onChange={e => { setZoneFilter(e.target.value); setShown(PAGE_SIZE) }}>
+            <option value="">All zones</option>
+            {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+          </select>
+          {(fromDate || toDate || zoneFilter || search || filter !== 'all') && (
+            <button className="button button-ghost" type="button" onClick={() => { setFromDate(''); setToDate(''); setZoneFilter(''); setSearch(''); setFilter('all'); setShown(PAGE_SIZE) }}>Clear filters</button>
+          )}
           <button className="button button-ghost" type="button" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button>
         </div>
         {error && <p className="adm-msg error">{error}</p>}

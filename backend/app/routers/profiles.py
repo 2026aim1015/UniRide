@@ -8,6 +8,10 @@ from app.schemas import ProfileOut, ProfileUpdate
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
+@router.get("", response_model=list[ProfileOut])
+def list_profiles(db: Session = Depends(get_db), _admin: Profile = Depends(require_admin)):
+    return list(db.scalars(select(Profile).order_by(Profile.full_name)).all())
+
 @router.get("/me", response_model=ProfileOut)
 def get_me(profile: Profile = Depends(current_profile)):
     return profile

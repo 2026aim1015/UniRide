@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.auth import current_profile, require_admin
 from app.database import get_db
-from app.models import AuditLog, Bicycle, ParkingZone, Ride, Profile
+from app.models import AuditLog, Bicycle, MaintenanceRecord, ParkingZone, Ride, Profile
 from app.schemas import RideEnd, RideOut, RideStart
 
 router = APIRouter(prefix="/rides", tags=["rides"])
@@ -49,6 +49,11 @@ def validate_zone(db, zone_id, lat, lon):
 @router.get("/me", response_model=list[RideOut])
 def my_rides(db: Session = Depends(get_db), profile: Profile = Depends(current_profile)):
     return list(db.scalars(select(Ride).where(Ride.user_id == profile.id).order_by(Ride.start_time.desc())).all())
+
+@router.get("/me/active", response_model=RideOut | None)
+def my_active_ride(db: Session = Depends(get_db), profile: Profile = Depends(current_profile)):
+    """The rider's unfinished ride, or null. Used to restore the ride after a page refresh."""
+    return db.scalar(select(Ride).where(Ride.user_id == profile.id, Ride.status.in_(OPEN)).order_by(Ride.start_time.desc()).limit(1))
 
 @router.get("", response_model=list[RideOut])
 def all_rides(db: Session = Depends(get_db), _admin: Profile = Depends(require_admin)):
@@ -100,7 +105,11 @@ def end_ride(ride_id: uuid.UUID, payload: RideEnd, db: Session = Depends(get_db)
         ride.end_longitude = payload.end_longitude
         ride.end_zone_id = payload.end_zone_id
         if bicycle:
-            bicycle.status = "available"
+            # If an admin opened a repair while the bicycle was out, keep it in maintenance.
+            repair_open = db.scalar(select(MaintenanceRecord.id).where(
+                MaintenanceRecord.bicycle_id == bicycle.id,
+                MaintenanceRecord.status.in_(("open", "in_progress"))).limit(1))
+            bicycle.status = "maintenance" if repair_open else "available"
             bicycle.current_zone_id = payload.end_zone_id or bicycle.current_zone_id
             if payload.end_latitude is not None: bicycle.last_latitude = payload.end_latitude
             if payload.end_longitude is not None: bicycle.last_longitude = payload.end_longitude

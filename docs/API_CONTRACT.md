@@ -2,7 +2,7 @@
 
 Base URL: `/api/v1`
 
-The current frontend uses demo mode. The following is the proposed contract to implement in FastAPI; names can be reconciled during backend development.
+The frontend talks to the live FastAPI backend. New endpoints: `GET /profiles` (admin), `GET /rides/me/active`.
 
 ## Bicycles
 - `GET /bicycles` — return an array of bicycles.

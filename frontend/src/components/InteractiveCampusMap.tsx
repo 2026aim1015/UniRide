@@ -6,7 +6,9 @@ import "leaflet/dist/leaflet.css";
 import "./InteractiveCampusMap.css";
 import { supabase } from "../lib/supabase";
 
-type Props = { compact?: boolean };
+type Props = { compact?: boolean; refreshKey?: number };
+
+const AUTO_REFRESH_MS = 30000;
 
 type ApiBicycle = {
   id: string;
@@ -213,7 +215,7 @@ function formatLastSeen(value: string | null) {
   return `Location updated ${date.toLocaleString()}`;
 }
 
-export default function InteractiveCampusMap({ compact = false }: Props) {
+export default function InteractiveCampusMap({ compact = false, refreshKey = 0 }: Props) {
   const [bicycles, setBicycles] = useState<ApiBicycle[]>([]);
   const [zones, setZones] = useState<ApiParkingZone[]>([]);
   const [studentPosition, setStudentPosition] = useState<[number, number] | null>(null);
@@ -222,6 +224,7 @@ export default function InteractiveCampusMap({ compact = false }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [locationMessage, setLocationMessage] = useState("");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const loadMapData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -255,6 +258,7 @@ export default function InteractiveCampusMap({ compact = false }: Props) {
         zoneResponse.json() as Promise<ApiParkingZone[]>,
       ]);
       setBicycles(bicycleData);
+      setLastUpdated(new Date());
       setZones(zoneData.filter((zone) => zone.is_active));
       setSelectedZoneId((current) =>
         current && zoneData.some((zone) => zone.id === current && zone.is_active)
@@ -271,6 +275,26 @@ export default function InteractiveCampusMap({ compact = false }: Props) {
 
   useEffect(() => {
     void loadMapData();
+  }, [loadMapData]);
+
+  // Reload straight away when the parent says something changed (a ride started or ended).
+  useEffect(() => {
+    if (refreshKey > 0) void loadMapData(true);
+  }, [refreshKey, loadMapData]);
+
+  // Keep availability fresh without a manual reload: poll while the tab is visible.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadMapData(true);
+    }, AUTO_REFRESH_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void loadMapData(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [loadMapData]);
 
   useEffect(() => {
@@ -355,7 +379,7 @@ export default function InteractiveCampusMap({ compact = false }: Props) {
           onClick={() => void loadMapData(true)}
           disabled={loading || refreshing}
         >
-          {refreshing ? "Refreshing…" : "Refresh map"}
+          {refreshing ? "Refreshing…" : lastUpdated ? `Refresh · updated ${lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Refresh map"}
         </button>
       </div>
 

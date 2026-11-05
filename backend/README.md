@@ -35,7 +35,8 @@ Edit `.env` and set:
 - `SUPABASE_URL` to your project URL
 - `SUPABASE_ANON_KEY` to your Supabase publishable/anon key
 - `CORS_ORIGINS` to the frontend origin, normally `http://localhost:5173`
-- `AUTO_CREATE_TABLES=true` only for initial local development
+- `AUTO_CREATE_TABLES=false` (keep it off; tables are managed by Alembic)
+- `RATE_LIMIT_PER_MINUTE` / `RATE_LIMIT_WRITE_PER_MINUTE` basic per-client rate limits (0 disables)
 
 Do not use a Supabase service-role key in the frontend. The backend only needs the anon/publishable key to validate the user's bearer token.
 
@@ -58,7 +59,7 @@ uvicorn app.main:app --reload
 - Health check: `http://127.0.0.1:8000/health`
 - Interactive API docs: `http://127.0.0.1:8000/docs`
 
-The database must exist before connecting. With `AUTO_CREATE_TABLES=true`, SQLAlchemy creates the tables on startup. For a shared/deployed database, use reviewed Alembic migrations instead of relying on `create_all`; migration files are not included in this starter package.
+The database must exist before connecting. Create the tables with `alembic upgrade head`. If the tables already exist, run `alembic stamp head` instead.
 
 ## 4. Authentication
 
@@ -137,6 +138,6 @@ Create a problem report:
 - `problem_reports` is the database table name; the HTTP route is `/reports` for straightforward frontend integration.
 - Starting a ride currently changes the ride to `active` and bicycle to `in_use` in one database transaction. Hardware unlock/lock is **not** integrated; hardware command endpoints only queue database commands and do not communicate with a physical controller.
 - Zone validation checks coordinates against the selected zone when both coordinates are supplied. For a production release, require GPS coordinates and an approved zone on ride return, and define location-spoofing protections.
-- `AUTO_CREATE_TABLES=true` is for local prototype setup only. There is no Alembic migration history in this package yet.
+- Schema changes go through Alembic (`alembic revision --autogenerate`, review, `alembic upgrade head`).
 - Before deployment, add rate limiting, structured logging, production error handling, migration tests, and tests against a real PostgreSQL/Supabase staging project.
 - The package has not been tested against your actual Supabase project or deployed database because no project credentials/database were provided.

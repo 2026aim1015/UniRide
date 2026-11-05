@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     supabase_anon_key: str = ""
     cors_origins: str = "http://localhost:5173"
     auto_create_tables: bool = False
+    # Basic per-client rate limit (requests per minute). Set 0 to disable.
+    rate_limit_per_minute: int = 240
+    rate_limit_write_per_minute: int = 60
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

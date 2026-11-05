@@ -1,12 +1,8 @@
-import { demoBicycles, demoReports, demoRides } from '../data/demoData'
-import type { Bicycle, ProblemReport, Ride, UserProfile } from '../types'
+import type { ActiveRide, Bicycle, ParkingZoneInfo, ProblemReport, Ride, RideCoordinates, UserProfile } from '../types'
 import { supabase } from '../lib/supabase'
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'
-
-// Live backend is the source of truth. Demo fixtures must never replace campus bicycles.
-const USE_DEMO = false
 
 interface ApiBicycle {
   id: string
@@ -16,6 +12,7 @@ interface ApiBicycle {
   current_zone_id: string | null
   last_latitude: number | null
   last_longitude: number | null
+  last_location_at: string | null
   created_at: string
 }
 interface ApiRide {
@@ -32,21 +29,12 @@ interface ApiRide {
   start_zone_id: string | null
   end_zone_id: string | null
 }
-interface ApiLocationEvent {
+export interface ApiLocationEvent {
   id: string
   ride_id: string
   latitude: number
   longitude: number
   recorded_at: string
-}
-
-interface ApiParkingZone {
-  id: string
-  name: string
-  latitude: number
-  longitude: number
-  radius_meters: number
-  is_active: boolean
 }
 
 interface ApiReport {
@@ -60,12 +48,6 @@ interface ApiReport {
   created_at: string
 }
 
-
-interface RideCoordinates {
-  latitude: number
-  longitude: number
-}
-
 const distanceBetweenMeters = (a: RideCoordinates, b: RideCoordinates): number => {
   const radians = (degrees: number) => (degrees * Math.PI) / 180
   const lat1 = radians(a.latitude)
@@ -77,7 +59,7 @@ const distanceBetweenMeters = (a: RideCoordinates, b: RideCoordinates): number =
   return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
 }
 
-function convertBicycle(item: ApiBicycle): Bicycle {
+function convertBicycle(item: ApiBicycle, zoneNames: Map<string, string>): Bicycle {
   const statusMap: Record<string, Bicycle['status']> = {
     available: 'Available',
     in_use: 'In use',
@@ -87,11 +69,11 @@ function convertBicycle(item: ApiBicycle): Bicycle {
   }
 
   let location = 'Location not reported'
-
-  if (item.last_latitude !== null && item.last_longitude !== null) {
+  const zoneName = item.current_zone_id ? zoneNames.get(item.current_zone_id) : undefined
+  if (zoneName) {
+    location = zoneName
+  } else if (item.last_latitude !== null && item.last_longitude !== null) {
     location = `${item.last_latitude.toFixed(5)}, ${item.last_longitude.toFixed(5)}`
-  } else if (item.current_zone_id) {
-    location = `Parking zone ${item.current_zone_id.slice(0, 8)}`
   }
 
   return {
@@ -99,9 +81,11 @@ function convertBicycle(item: ApiBicycle): Bicycle {
     qrCodeId: item.qr_code_id,
     label: item.display_name,
     location,
-    distance: 'Distance unavailable',
+    zoneId: item.current_zone_id,
+    lastUpdated: item.last_location_at
+      ? new Date(item.last_location_at).toLocaleString()
+      : 'No location update yet',
     status: statusMap[item.status] ?? 'Maintenance',
-    lastServiced: 'Service history unavailable',
     color: item.status === 'available' ? '#e0f1e8' : '#f1f1ed',
   }
 }
@@ -160,16 +144,25 @@ function convertRide(item: ApiRide): Ride {
     ),
     date: new Date(item.start_time).toLocaleString(),
     duration: calculateDuration(item.start_time, item.end_time),
-    distance: 'GPS data unavailable',
+    distance: 'No GPS data',
     status:
       item.status === 'completed'
         ? 'Completed'
         : 'Active',
   }
 }
+export const pathLengthMeters = (points: RideCoordinates[]): number => {
+  let total = 0
+  for (let i = 1; i < points.length; i++) total += distanceBetweenMeters(points[i - 1], points[i])
+  return total
+}
+
+export const formatDistanceMeters = (meters: number): string =>
+  meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(2)} km`
+
 const calculateRideDistance = (points: ApiLocationEvent[]): string => {
   if (points.length < 2) {
-    return 'GPS data unavailable'
+    return 'No GPS data'
   }
 
   const toRadians = (degrees: number) => (degrees * Math.PI) / 180
@@ -255,15 +248,16 @@ async function request<T>(
   })
 
   if (!response.ok) {
-    const message = await response.text()
-    throw new Error(`API request failed (${response.status}): ${message}`)
+    const body = await response.json().catch(() => null)
+    const detail = body && typeof body.detail === 'string' ? body.detail : ''
+    throw new Error(detail || `Request failed (${response.status}). Please try again.`)
   }
 
   return response.json() as Promise<T>
 }
 
 async function findParkingZone(location: RideCoordinates): Promise<string> {
-  const zones = await request<ApiParkingZone[]>('/parking-zones')
+  const zones = await request<ParkingZoneInfo[]>('/parking-zones')
   const eligible = zones
     .filter(zone => zone.is_active)
     .map(zone => ({
@@ -284,35 +278,40 @@ async function findParkingZone(location: RideCoordinates): Promise<string> {
 }
 
 export const api = {
-  // Always talks to the real backend (login is never faked, even in demo-data mode).
   async getMe(): Promise<UserProfile> {
     return request<UserProfile>('/profiles/me')
   },
 
-  async getBicycles(): Promise<Bicycle[]> {
-    if (USE_DEMO) return demoBicycles
+  async getParkingZones(): Promise<ParkingZoneInfo[]> {
+    return request<ParkingZoneInfo[]>('/parking-zones')
+  },
 
-    const items = await request<ApiBicycle[]>('/bicycles')
+  async getBicycles(): Promise<Bicycle[]> {
+    const [items, zones] = await Promise.all([
+      request<ApiBicycle[]>('/bicycles'),
+      request<ParkingZoneInfo[]>('/parking-zones?include_inactive=true').catch(() => [] as ParkingZoneInfo[]),
+    ])
+    const zoneNames = new Map(zones.map(zone => [zone.id, zone.name]))
     // Offline bicycles are deactivated: keep them in admin management, not the student catalogue.
-    return items.filter(item => item.status !== 'offline').map(convertBicycle)
+    return items.filter(item => item.status !== 'offline').map(item => convertBicycle(item, zoneNames))
   },
 
   async getBicycle(bicycleId: string): Promise<Bicycle> {
-    if (USE_DEMO) {
-      const bike = demoBicycles.find(item => item.id === bicycleId)
-      if (!bike) throw new Error('Bicycle not found')
-      return bike
-    }
+    const [item, zones] = await Promise.all([
+      request<ApiBicycle>(`/bicycles/${encodeURIComponent(bicycleId)}`),
+      request<ParkingZoneInfo[]>('/parking-zones?include_inactive=true').catch(() => [] as ParkingZoneInfo[]),
+    ])
+    return convertBicycle(item, new Map(zones.map(zone => [zone.id, zone.name])))
+  },
 
-    const item = await request<ApiBicycle>(
-      `/bicycles/${encodeURIComponent(bicycleId)}`,
-    )
-
-    return convertBicycle(item)
+  // The rider's unfinished ride (if any), so it can be restored after a refresh.
+  async getActiveRide(): Promise<ActiveRide | null> {
+    const ride = await request<ApiRide | null>('/rides/me/active')
+    if (!ride) return null
+    return { rideId: ride.id, bicycleId: ride.bicycle_id, startedAt: new Date(ride.start_time).getTime() }
   },
 
   async getRides(): Promise<Ride[]> {
-  if (USE_DEMO) return demoRides
 
   const items = await request<ApiRide[]>('/rides/me')
 
@@ -336,14 +335,12 @@ async getRideLocations(rideId: string): Promise<ApiLocationEvent[]> {
   
  
 async getReports(): Promise<ProblemReport[]> {
-  if (USE_DEMO) return demoReports
 
   const items = await request<ApiReport[]>('/reports/me')
   return items.map(convertReport)
 },
 async getAllReports(): Promise<ProblemReport[]> {
   // Admin only: every report from every student.
-  if (USE_DEMO) return demoReports
   const items = await request<ApiReport[]>('/reports')
   return items.map(convertReport)
 },
@@ -351,9 +348,6 @@ async updateReportStatus(
   reportId: string,
   status: ProblemReport['status'],
 ): Promise<ProblemReport> {
-  if (USE_DEMO) {
-    throw new Error('Demo mode is not supported for updating reports.')
-  }
   const item = await request<ApiReport>(
     `/reports/${encodeURIComponent(reportId)}`,
     {
@@ -369,9 +363,6 @@ async updateReportStatus(
     bicycleId: string,
     startLocation: RideCoordinates,
   ): Promise<{ rideId: string; bicycleId: string }> {
-    if (USE_DEMO) {
-      throw new Error('Demo mode is not supported for starting real rides.')
-    }
 
     const startZoneId = await findParkingZone(startLocation)
     const ride = await request<ApiRide>('/rides/start', {
@@ -391,9 +382,6 @@ async updateReportStatus(
     rideId: string,
     endLocation: RideCoordinates,
   ): Promise<ApiRide> {
-    if (USE_DEMO) {
-      throw new Error('Demo mode is not supported for ending real rides.')
-    }
 
     const endZoneId = await findParkingZone(endLocation)
     // Save the final point before closing the ride; completed rides reject location events.
@@ -416,11 +404,6 @@ async updateReportStatus(
   rideId: string,
   location: RideCoordinates,
 ): Promise<void> {
-  if (USE_DEMO) {
-    throw new Error(
-      'Demo mode is not supported for GPS tracking.',
-    )
-  }
 
   await request(
     `/rides/${encodeURIComponent(rideId)}/locations`,
@@ -439,8 +422,6 @@ async updateReportStatus(
     issue: string
     description: string
   }): Promise<void> {
-    if (USE_DEMO) return
-
     await request<ApiReport>('/reports', {
       method: 'POST',
       body: JSON.stringify({
